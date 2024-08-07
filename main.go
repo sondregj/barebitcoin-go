@@ -62,6 +62,21 @@ func main() {
 	fmt.Println("  purchase max rate", stats.PurchaseMaxRate)
 	fmt.Println("}")
 
+	historicalPrices, err := client.HistoricalBitcoinPrices(ctx)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println("historical prices {")
+	fmt.Println(" day count", len(historicalPrices.Day))
+	fmt.Println(" week count", len(historicalPrices.Week))
+	fmt.Println(" month count", len(historicalPrices.Month))
+	fmt.Println(" quarter count", len(historicalPrices.Quarter))
+	fmt.Println(" half year count", len(historicalPrices.HalfYear))
+	fmt.Println(" year count", len(historicalPrices.Year))
+	fmt.Println(" current year count", len(historicalPrices.CurrentYear))
+	fmt.Println(" start count", len(historicalPrices.Start))
+	fmt.Println("}")
+
 	if err := saveSession(client.session); err != nil {
 		fmt.Println(err)
 	}
@@ -159,6 +174,35 @@ type AllTimeData struct {
 func (c *Client) GetBitcoinHoldings(ctx context.Context) (*AllTimeData, error) {
 	var response AllTimeData
 	err := c.post(ctx, "https://barebitcoin.no/connect/bb.pnl.v1.PnlService/BitcoinHoldings", nil, &response)
+	if err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+type HistoricalPrices struct {
+	Day         []HistoricalPrice `json:"day"`
+	Week        []HistoricalPrice `json:"week"`
+	Month       []HistoricalPrice `json:"month"`
+	Quarter     []HistoricalPrice `json:"quarter"`
+	HalfYear    []HistoricalPrice `json:"halfYear"`
+	Year        []HistoricalPrice `json:"year"`
+	CurrentYear []HistoricalPrice `json:"currentYear"`
+	Start       []HistoricalPrice `json:"start"`
+}
+type HistoricalPrice struct {
+	BTCNOK    float64              `json:"btcnok"`
+	Timestamp string               `json:"timestamp"`
+	Delta     HistoricalPriceDelta `json:"delta"`
+}
+type HistoricalPriceDelta struct {
+	NOK     float64 `json:"nok"`
+	Percent float64 `json:"percent"`
+}
+
+func (c *Client) HistoricalBitcoinPrices(ctx context.Context) (*HistoricalPrices, error) {
+	var response HistoricalPrices
+	err := c.post(ctx, "https://barebitcoin.no/connect/bb.v1alpha.BBService/HistoricalBitcoinPrices", nil, &response)
 	if err != nil {
 		return nil, err
 	}
