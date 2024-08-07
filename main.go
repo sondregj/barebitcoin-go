@@ -263,6 +263,8 @@ type apiError struct {
 	Message string `json:"message"`
 }
 
+// TODO: https://barebitcoin.no/connect/bb.deposits.v1.DepositsService/GetDestinations
+
 func (c *Client) NewLightningInvoice(ctx context.Context, amountSatoshi int) (string, error) {
 	var response struct {
 		PaymentRequest string `json:"paymentRequest"`
