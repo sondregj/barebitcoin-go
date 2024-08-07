@@ -16,14 +16,8 @@ import (
 )
 
 func main() {
-	email := os.Getenv("BAREBITCOIN_EMAIL")
-	password := os.Getenv("BAREBITCOIN_PASSWORD")
-	if email == "" || password == "" {
-		fmt.Println("BAREBITCOIN_EMAIL and BAREBITCOIN_PASSWORD must be set")
-		os.Exit(1)
-	}
 	ctx := context.Background()
-	session, err := initSession(ctx, email, password)
+	session, err := initSession(ctx)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -162,7 +156,7 @@ func (c *Client) post(ctx context.Context, path string, body, response any) erro
 	return json.NewDecoder(resp.Body).Decode(response)
 }
 
-func initSession(ctx context.Context, email, password string) (*LoginResponse, error) {
+func initSession(ctx context.Context) (*LoginResponse, error) {
 	session, err := getSession()
 	if err == nil {
 		return session, nil
@@ -171,6 +165,11 @@ func initSession(ctx context.Context, email, password string) (*LoginResponse, e
 		return nil, err
 	}
 
+	email := os.Getenv("BAREBITCOIN_EMAIL")
+	password := os.Getenv("BAREBITCOIN_PASSWORD")
+	if email == "" || password == "" {
+		return nil, errors.New("BAREBITCOIN_EMAIL and BAREBITCOIN_PASSWORD must be set")
+	}
 	login, err := Login(ctx, email, password)
 	if err != nil {
 		return nil, err
