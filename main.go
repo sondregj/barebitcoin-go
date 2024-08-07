@@ -25,6 +25,21 @@ func main() {
 	}
 	command := os.Args[1]
 
+	if command == "logout" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		sessionPath := filepath.Join(home, ".config", "barebitcoin", "session.json")
+		if err := os.Remove(sessionPath); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		fmt.Println("logged out")
+		os.Exit(0)
+	}
+
 	session, err := initSession(ctx)
 	if err != nil {
 		fmt.Println(err)
