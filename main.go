@@ -24,8 +24,7 @@ func main() {
 	}
 
 	client := &Client{
-		accessToken:  session.AccessToken,
-		refreshToken: session.RefreshToken,
+		session: session,
 	}
 	user, err := client.GetUser(ctx)
 	if err != nil {
@@ -40,11 +39,14 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println("current balance", bitcoinHoldings.Entries[len(bitcoinHoldings.Entries)-1].BalanceSatoshi, "sat")
+
+	if err := saveSession(client.session); err != nil {
+		fmt.Println(err)
+	}
 }
 
 type Client struct {
-	accessToken  string
-	refreshToken string
+	session *LoginResponse
 }
 
 type User struct {
@@ -143,7 +145,7 @@ func (c *Client) post(ctx context.Context, path string, body, response any) erro
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{
 		Name:  "bb_access_token",
-		Value: c.accessToken,
+		Value: c.session.AccessToken,
 	})
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -156,11 +158,11 @@ func (c *Client) post(ctx context.Context, path string, body, response any) erro
 			return fmt.Errorf("unexpected status code %d", resp.StatusCode)
 		}
 		if apiErr.Message == "expired access token" {
-			accessToken, err := RefreshCookie(ctx, c.accessToken, c.refreshToken)
+			accessToken, err := RefreshCookie(ctx, c.session.AccessToken, c.session.RefreshToken)
 			if err != nil {
 				return err
 			}
-			c.accessToken = *accessToken
+			c.session.AccessToken = *accessToken
 		}
 		fmt.Println(resp)
 		return fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, apiErr.Message)
