@@ -17,6 +17,13 @@ import (
 
 func main() {
 	ctx := context.Background()
+
+	if len(os.Args) != 2 {
+		fmt.Println("Usage: barebitcoin <command>")
+		os.Exit(1)
+	}
+	command := os.Args[1]
+
 	session, err := initSession(ctx)
 	if err != nil {
 		fmt.Println(err)
@@ -35,47 +42,54 @@ func main() {
 		}
 		client.session.AccessToken = *accessToken
 	}
-	user, err := client.GetUser(ctx)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	fmt.Println("user balance sat", user.BalanceSat)
 
-	bitcoinHoldings, err := client.GetBitcoinHoldings(ctx)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	fmt.Println("current balance", bitcoinHoldings.Entries[len(bitcoinHoldings.Entries)-1].BalanceSatoshi, "sat")
+	switch command {
+	case "user":
+		user, err := client.GetUser(ctx)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		fmt.Println("user balance sat", user.BalanceSat)
 
-	stats, err := client.GetStats(ctx)
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println("stats {")
-	fmt.Println("  purchase total sat", stats.PurchaseTotalSats)
-	fmt.Println("  purchase spent nok", stats.PurchaseSpentNOK)
-	fmt.Println("  purchase current total value", stats.PurchaseCurrentTotalValue)
-	fmt.Println("  purchase average rate", stats.PurchaseAverageRate)
-	fmt.Println("  purchase min rate", stats.PurchaseMinRate)
-	fmt.Println("  purchase max rate", stats.PurchaseMaxRate)
-	fmt.Println("}")
+	case "holdings":
+		bitcoinHoldings, err := client.GetBitcoinHoldings(ctx)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		fmt.Println("current balance", bitcoinHoldings.Entries[len(bitcoinHoldings.Entries)-1].BalanceSatoshi, "sat")
 
-	historicalPrices, err := client.HistoricalBitcoinPrices(ctx)
-	if err != nil {
-		fmt.Println(err)
+	case "stats":
+		stats, err := client.GetStats(ctx)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println("stats {")
+		fmt.Println("  purchase total sat", stats.PurchaseTotalSats)
+		fmt.Println("  purchase spent nok", stats.PurchaseSpentNOK)
+		fmt.Println("  purchase current total value", stats.PurchaseCurrentTotalValue)
+		fmt.Println("  purchase average rate", stats.PurchaseAverageRate)
+		fmt.Println("  purchase min rate", stats.PurchaseMinRate)
+		fmt.Println("  purchase max rate", stats.PurchaseMaxRate)
+		fmt.Println("}")
+
+	case "history":
+		historicalPrices, err := client.HistoricalBitcoinPrices(ctx)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println("historical prices {")
+		fmt.Println(" day count", len(historicalPrices.Day))
+		fmt.Println(" week count", len(historicalPrices.Week))
+		fmt.Println(" month count", len(historicalPrices.Month))
+		fmt.Println(" quarter count", len(historicalPrices.Quarter))
+		fmt.Println(" half year count", len(historicalPrices.HalfYear))
+		fmt.Println(" year count", len(historicalPrices.Year))
+		fmt.Println(" current year count", len(historicalPrices.CurrentYear))
+		fmt.Println(" start count", len(historicalPrices.Start))
+		fmt.Println("}")
 	}
-	fmt.Println("historical prices {")
-	fmt.Println(" day count", len(historicalPrices.Day))
-	fmt.Println(" week count", len(historicalPrices.Week))
-	fmt.Println(" month count", len(historicalPrices.Month))
-	fmt.Println(" quarter count", len(historicalPrices.Quarter))
-	fmt.Println(" half year count", len(historicalPrices.HalfYear))
-	fmt.Println(" year count", len(historicalPrices.Year))
-	fmt.Println(" current year count", len(historicalPrices.CurrentYear))
-	fmt.Println(" start count", len(historicalPrices.Start))
-	fmt.Println("}")
 
 	if err := saveSession(client.session); err != nil {
 		fmt.Println(err)
