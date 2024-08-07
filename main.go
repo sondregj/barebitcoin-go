@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -18,7 +19,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	if len(os.Args) != 2 {
+	if len(os.Args) < 2 {
 		fmt.Println("Usage: barebitcoin <command>")
 		os.Exit(1)
 	}
@@ -89,6 +90,25 @@ func main() {
 		fmt.Println(" current year count", len(historicalPrices.CurrentYear))
 		fmt.Println(" start count", len(historicalPrices.Start))
 		fmt.Println("}")
+
+	case "invoice":
+		var amountSatoshi int
+		if len(os.Args) == 3 {
+			amountSatoshi, err = strconv.Atoi(os.Args[2])
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		}
+		invoice, err := client.NewLightningInvoice(ctx, amountSatoshi)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		fmt.Println(invoice)
+
+	default:
+		fmt.Printf("unknown command %q\n", command)
 	}
 
 	if err := saveSession(client.session); err != nil {
@@ -226,6 +246,21 @@ func (c *Client) HistoricalBitcoinPrices(ctx context.Context) (*HistoricalPrices
 type apiError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+}
+
+func (c *Client) NewLightningInvoice(ctx context.Context, amountSatoshi int) (string, error) {
+	var response struct {
+		PaymentRequest string `json:"paymentRequest"`
+	}
+	body := map[string]string{}
+	if amountSatoshi > 0 {
+		body["amountSatoshi"] = strconv.Itoa(amountSatoshi)
+	}
+	err := c.post(ctx, "https://barebitcoin.no/connect/bb.deposits.v1.DepositsService/NewLightningInvoice", body, &response)
+	if err != nil {
+		return "", err
+	}
+	return response.PaymentRequest, nil
 }
 
 func (c *Client) post(ctx context.Context, path string, body, response any) error {
