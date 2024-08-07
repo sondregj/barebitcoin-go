@@ -49,6 +49,19 @@ func main() {
 	}
 	fmt.Println("current balance", bitcoinHoldings.Entries[len(bitcoinHoldings.Entries)-1].BalanceSatoshi, "sat")
 
+	stats, err := client.GetStats(ctx)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println("stats {")
+	fmt.Println("  purchase total sat", stats.PurchaseTotalSats)
+	fmt.Println("  purchase spent nok", stats.PurchaseSpentNOK)
+	fmt.Println("  purchase current total value", stats.PurchaseCurrentTotalValue)
+	fmt.Println("  purchase average rate", stats.PurchaseAverageRate)
+	fmt.Println("  purchase min rate", stats.PurchaseMinRate)
+	fmt.Println("  purchase max rate", stats.PurchaseMaxRate)
+	fmt.Println("}")
+
 	if err := saveSession(client.session); err != nil {
 		fmt.Println(err)
 	}
@@ -111,6 +124,24 @@ func (c *Client) GetUser(ctx context.Context) (*User, error) {
 		return nil, err
 	}
 	return &response.User, nil
+}
+
+type Stats struct {
+	PurchaseAverageRate       string `json:"purchaseAverageRate"`
+	PurchaseMaxRate           string `json:"purchaseMaxRate"`
+	PurchaseMinRate           string `json:"purchaseMinRate"`
+	PurchaseTotalSats         string `json:"purchaseTotalSats"`
+	PurchaseSpentNOK          string `json:"purchaseSpentNok"`
+	PurchaseCurrentTotalValue string `json:"purchaseCurrentTotalValue"`
+}
+
+func (c *Client) GetStats(ctx context.Context) (*Stats, error) {
+	var response Stats
+	err := c.post(ctx, "https://barebitcoin.no/connect/bb.v1alpha.UserService/GetStats", nil, &response)
+	if err != nil {
+		return nil, err
+	}
+	return &response, nil
 }
 
 type BalanceEntry struct {
