@@ -23,10 +23,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// fmt.Println("session", session.AccessToken)
-
 	client := &Client{
-		accessToken: session.AccessToken,
+		accessToken:  session.AccessToken,
+		refreshToken: session.RefreshToken,
 	}
 	user, err := client.GetUser(ctx)
 	if err != nil {
@@ -44,7 +43,8 @@ func main() {
 }
 
 type Client struct {
-	accessToken string
+	accessToken  string
+	refreshToken string
 }
 
 type User struct {
@@ -123,6 +123,11 @@ func (c *Client) GetBitcoinHoldings(ctx context.Context) (*AllTimeData, error) {
 	return &response, nil
 }
 
+type apiError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
 func (c *Client) post(ctx context.Context, path string, body, response any) error {
 	if body == nil {
 		body = map[string]any{}
@@ -146,12 +151,19 @@ func (c *Client) post(ctx context.Context, path string, body, response any) erro
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		b, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return err
+		var apiErr apiError
+		if err := json.NewDecoder(resp.Body).Decode(&apiErr); err != nil {
+			return fmt.Errorf("unexpected status code %d", resp.StatusCode)
 		}
-		fmt.Println("response", string(b))
-		return fmt.Errorf("unexpected status code %d", resp.StatusCode)
+		if apiErr.Message == "expired access token" {
+			accessToken, err := RefreshCookie(ctx, c.accessToken, c.refreshToken)
+			if err != nil {
+				return err
+			}
+			c.accessToken = *accessToken
+		}
+		fmt.Println(resp)
+		return fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, apiErr.Message)
 	}
 	return json.NewDecoder(resp.Body).Decode(response)
 }
@@ -269,6 +281,44 @@ func Login(ctx context.Context, email, password string) (*LoginResponse, error) 
 	fmt.Println("login header", resp.Header)
 
 	return &response, nil
+}
+
+// FIXME: this does not really work, the token must be refreshed while the existing
+// access token is still valid
+func RefreshCookie(ctx context.Context, accessToken, refreshToken string) (*string, error) {
+	url := "https://barebitcoin.no/connect/bb.cookie.v1.CookieService/RefreshCookie"
+	body := bytes.NewReader([]byte("{\"refresfhToken\": \"" + refreshToken + "\"}"))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("content-type", "application/json")
+	// req.AddCookie(&http.Cookie{
+	// 	Name:  "bb_refresh_token",
+	// 	Value: refreshToken,
+	// })
+	req.AddCookie(&http.Cookie{
+		Name:  "bb_access_token",
+		Value: accessToken,
+	})
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		fmt.Println(string(b))
+		return nil, errors.New("refresh cookie bad status: " + resp.Status)
+	}
+	var newAccessToken string
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == "bb_access_token" {
+			newAccessToken = cookie.Value
+		}
+	}
+	return &newAccessToken, nil
 }
 
 func ValidateGenerator(ctx context.Context, accessToken, code string) error {
