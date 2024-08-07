@@ -26,6 +26,15 @@ func main() {
 	client := &Client{
 		session: session,
 	}
+	// NOTE: only doing this until I can do it properly
+	{
+		accessToken, err := RefreshCookie(ctx, client.session.AccessToken, client.session.RefreshToken)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		client.session.AccessToken = *accessToken
+	}
 	user, err := client.GetUser(ctx)
 	if err != nil {
 		fmt.Println(err)
@@ -158,11 +167,7 @@ func (c *Client) post(ctx context.Context, path string, body, response any) erro
 			return fmt.Errorf("unexpected status code %d", resp.StatusCode)
 		}
 		if apiErr.Message == "expired access token" {
-			accessToken, err := RefreshCookie(ctx, c.session.AccessToken, c.session.RefreshToken)
-			if err != nil {
-				return err
-			}
-			c.session.AccessToken = *accessToken
+			// TODO: refresh token
 		}
 		fmt.Println(resp)
 		return fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, apiErr.Message)
