@@ -60,6 +60,23 @@ func main() {
 	}
 
 	switch command {
+
+	case "price":
+		price, err := client.Price(ctx)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		fmt.Println("price {")
+		fmt.Println("  buy btc nok", price.BuyBTCNOK)
+		fmt.Println("  mid btc nok", price.MidBTCNOK)
+		fmt.Println("  sell btc nok", price.SellBTCNOK)
+		fmt.Println("  spread buy", price.SpreadBuy)
+		fmt.Println("  spread sell", price.SpreadSell)
+		fmt.Println("  usd nok", price.USDNOK)
+		fmt.Printf("  timestamp %q\n", price.Timestamp)
+		fmt.Println("}")
+
 	case "user":
 		user, err := client.GetUser(ctx)
 		if err != nil {
@@ -177,6 +194,26 @@ type UserPersonalInfo struct {
 		Country string `json:"country"`
 		Code    string `json:"code"`
 	} `json:"citizenship"`
+}
+
+type Price struct {
+	BuyBTCNOK  float64   `json:"buyBtcnok"`
+	SpreadBuy  float64   `json:"spreadBuy"`
+	SellBTCNOK float64   `json:"sellBtcnok"`
+	SpreadSell float64   `json:"spreadSell"`
+	MidBTCNOK  float64   `json:"midBtcnok"`
+	USDNOK     string    `json:"usdnok"`
+	Timestamp  time.Time `json:"timestamp"`
+}
+
+func (c *Client) Price(ctx context.Context) (*Price, error) {
+	var response Price
+	// NOTE: this does not require authentication
+	err := c.post(ctx, "https://barebitcoin.no/connect/bb.v1alpha.BBService/Price", nil, &response)
+	if err != nil {
+		return nil, err
+	}
+	return &response, nil
 }
 
 func (c *Client) GetUser(ctx context.Context) (*User, error) {
