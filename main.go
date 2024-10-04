@@ -192,7 +192,7 @@ type UserPersonalInfo struct {
 		Month int `json:"month"`
 		Day   int `json:"day"`
 	} `json:"birthDate"`
-	Citizenship struct {
+	Citizenship []struct {
 		Country string `json:"country"`
 		Code    string `json:"code"`
 	} `json:"citizenship"`
