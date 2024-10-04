@@ -31,6 +31,8 @@ func main() {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+		// bitcoin := "₿"
+		// bitcoinSatoshi := "₿̰"
 		sessionPath := filepath.Join(home, ".config", "barebitcoin", "session.json")
 		if err := os.Remove(sessionPath); err != nil {
 			fmt.Println(err)
@@ -472,7 +474,7 @@ func Login(ctx context.Context, email, password string) (*LoginResponse, error) 
 // access token is still valid
 func RefreshCookie(ctx context.Context, accessToken, refreshToken string) (*string, error) {
 	url := "https://barebitcoin.no/connect/bb.cookie.v1.CookieService/RefreshCookie"
-	body := bytes.NewReader([]byte("{\"refresfhToken\": \"" + refreshToken + "\"}"))
+	body := bytes.NewReader([]byte("{\"refreshToken\": \"" + refreshToken + "\"}"))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return nil, err
