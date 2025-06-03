@@ -3,3 +3,9 @@
 
 # direnv
 .envrc
+
+# zed
+.zed
+
+# go
+/bin
