@@ -53,6 +53,8 @@ func NewHTTPClientWithKeys(apiKey, secretKey string) *HTTPClient {
 	}
 }
 
+// The prices a user can expect to pay for a given amount of BTCNOK,
+// with a given payment method.
 type UserPrice struct {
 	Buy  float64 `json:"buy"`
 	Sell float64 `json:"sell"`
@@ -139,12 +141,23 @@ type GetBitcoinWithdrawalResponse struct {
 }
 
 type PriceResponse struct {
-	Price     float64   `json:"price"`
-	Bid       float64   `json:"bid"`
-	Ask       float64   `json:"ask"`
+	// The mid price.
+	Price float64 `json:"price"`
+
+	// Current bid price, without fees.
+	Bid float64 `json:"bid"`
+
+	// Current ask price, without fees.
+	Ask float64 `json:"ask"`
+
+	// The time the price was fetched.
 	Timestamp time.Time `json:"timestamp"`
-	Card      UserPrice `json:"card"`
-	Bank      UserPrice `json:"bank"`
+
+	// Effective price, when paying with card.
+	Card UserPrice `json:"card"`
+
+	// Effective price, when paying with bank transfer.
+	Bank UserPrice `json:"bank"`
 }
 
 func FetchBitcoinNOKPrice(ctx context.Context) (*PriceResponse, error) {
@@ -154,17 +167,17 @@ func FetchBitcoinNOKPrice(ctx context.Context) (*PriceResponse, error) {
 	return &response, err
 }
 
-type DepositNetwork string
+type Network string
 
 const (
-	DepositNetworkUnspecified DepositNetwork = "NETWORK_UNSPECIFIED"
-	DepositNetworkBitcoin     DepositNetwork = "NETWORK_BITCOIN"
-	DepositNetworkLightning   DepositNetwork = "NETWORK_LIGHTNING"
+	NetworkUnspecified Network = "NETWORK_UNSPECIFIED"
+	NetworkBitcoin     Network = "NETWORK_BITCOIN"
+	NetworkLightning   Network = "NETWORK_LIGHTNING"
 )
 
 type DepositDestination struct {
-	Destination string         `json:"destination"`
-	Network     DepositNetwork `json:"network"`
+	Destination string  `json:"destination"`
+	Network     Network `json:"network"`
 }
 
 type DepositDestinationsResponse struct {
@@ -218,7 +231,7 @@ func (c *HTTPClient) GetLedgerAccount(ctx context.Context, accountID string) (*G
 
 type Order struct {
 	OrderID   string    `json:"orderId"`
-	Type      string    `json:"type"`
+	Type      OrderType `json:"type"`
 	Direction string    `json:"direction"`
 	Amount    float64   `json:"amount"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -234,17 +247,47 @@ func (c *HTTPClient) GetOrders(ctx context.Context) (*OpenOrdersResponse, error)
 	return &response, err
 }
 
+type OrderType string
+
+const (
+	OrderTypeUnspecified OrderType = "ORDER_TYPE_UNSPECIFIED"
+	OrderTypeMarket      OrderType = "ORDER_TYPE_MARKET"
+	OrderTypeLimit       OrderType = "ORDER_TYPE_LIMIT"
+)
+
+type OrderDirection string
+
+const (
+	OrderDirectionUnspecified OrderDirection = "DIRECTION_UNSPECIFIED"
+	OrderDirectionBuy         OrderDirection = "DIRECTION_BUY"
+	OrderDirectionSell        OrderDirection = "DIRECTION_SELL"
+)
+
 type NewOrderRequest struct {
-	Type        string  `json:"type"`
-	Direction   string  `json:"direction"`
-	Amount      float64 `json:"amount"`
-	AccountID   string  `json:"accountId"`
-	Description string  `json:"description,omitempty"`
-	Price       float64 `json:"price,omitempty"`
+	// The bitcoin account to use for this order. Empty for default account.
+	AccountID string `json:"accountId,omitempty"`
+
+	Type      OrderType      `json:"type"`
+	Direction OrderDirection `json:"direction"`
+
+	// Amount to spend. Must be positive. When buying, this is the amount
+	// in NOK. When selling, this is the amount in BTC.
+	Amount float64 `json:"amount"`
+
+	// Free-form text description of the order. Can be used to correlate with
+	// your own systems.
+	Description string `json:"description,omitempty"`
+
+	// The price to buy or sell at. Only used for limit orders.
+	Price float64 `json:"price,omitempty"`
 }
 
 type NewOrderResponse struct {
+	// ID of the created order.
 	OrderID string `json:"orderId"`
+
+	// If this was a market order, the order resulted in a trade.
+	// Empty if not market order.
 	TradeID string `json:"tradeId"`
 }
 
@@ -325,17 +368,41 @@ func (c *HTTPClient) GetFiatAccount(ctx context.Context) (*GetFiatAccountRespons
 }
 
 type SendBitcoinRequest struct {
-	AccountID   string  `json:"accountId"`
-	Destination string  `json:"destination"`
-	AmountBTC   float64 `json:"amountBtc"`
-	Description string  `json:"description,omitempty"`
-	IsPayment   bool    `json:"isPayment,omitempty"`
+	// The ID of the account to send from. If empty, the default account is used.
+	AccountID string `json:"accountId"`
+
+	// The bitcoin destination to send funds to.
+	//
+	// Supported formats:
+	// - Bitcoin address (bech32, legacy-segwit, legacy)
+	// - Lightning invoice (bolt11)
+	// - Lightning address
+	// - Lightning LNURL
+	Destination string `json:"destination"`
+
+	// The amount to send.
+	// This field is required for all destinations except Lightning invoices.
+	// If the destination is a Lightning invoice, the amount is derived from the
+	// invoice.
+	AmountBTC float64 `json:"amountBtc"`
+
+	// Free-form text description of the withdrawal. Can be used to correlate
+	// with your own systems.
+	Description string `json:"description,omitempty"`
+
+	// Marks the transaction as a payment. This has consequences for how the
+	// transaction is exported for tax purposes. It has no effect on the
+	// bitcoin transaction itself.
+	IsPayment bool `json:"isPayment,omitempty"`
 }
 
 type SendBitcoinResponse struct {
-	WithdrawalID string `json:"withdrawalId"`
-	Network      string `json:"network"`
-	Status       string `json:"status"`
+	WithdrawalID string  `json:"withdrawalId"`
+	Network      Network `json:"network"`
+
+	// The status of the withdrawal. The withdrawal might immediately succeed,
+	// if sending to another user of the Bare Bitcoin platform.
+	Status WithdrawalStatus `json:"status"`
 }
 
 func (c *HTTPClient) SendBitcoin(ctx context.Context, req *SendBitcoinRequest) (*SendBitcoinResponse, error) {

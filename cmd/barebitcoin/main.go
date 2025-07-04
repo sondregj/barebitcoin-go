@@ -32,6 +32,7 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("price {")
+		fmt.Println("  mid btc nok", strconv.FormatFloat(price.Price, 'f', -1, 64))
 		fmt.Println("  ask btc nok", strconv.FormatFloat(price.Ask, 'f', -1, 64))
 		fmt.Println("  bid btc nok", strconv.FormatFloat(price.Bid, 'f', -1, 64))
 		fmt.Printf("  timestamp %q\n", price.Timestamp)
