@@ -5,7 +5,7 @@ info:
     API for interacting with Bare Bitcoin. Most endpoints require
     authentication. Create API keys
     [here](https://barebitcoin.no/innlogget/profil/nokler). Read about API
-    authentication [here](https://dev.barebitcoin.no/).
+    authentication [here](https://dev.barebitcoin.no/#authentication).
   contact:
     url: https://barebitcoin.no
     email: barebitcoin@bb.no
@@ -90,46 +90,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GetLightningInvoiceResponse"
-  /v1/ledger:
-    get:
-      tags:
-        - LedgerService
-      summary: Fetch ledger
-      description: >-
-        Fetches the ledger for the entire user. The ledger includes all
-        transactions
-         that affect the balance of the account.
-      operationId: LedgerService_LedgerUser
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LedgerUserResponse"
-  /v1/ledger/{accountId}:
-    get:
-      tags:
-        - LedgerService
-      summary: Fetch sub account ledger
-      description: |-
-        Fetches the ledger for a specific account. The ledger includes all
-         transactions that affect the balance of the account.
-      operationId: LedgerService_LedgerAccount
-      parameters:
-        - name: accountId
-          in: path
-          description: The ID of the account to fetch the ledger for.
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LedgerAccountResponse"
   /v1/orders:
     get:
       tags:
@@ -214,16 +174,57 @@ paths:
                 $ref: "#/components/schemas/PriceResponse"
       security:
         - {}
+  /v1/tax/transactions:
+    get:
+      tags:
+        - TaxService
+      summary: List tax transactions
+      description: >-
+        Lists tax-relevant transactions done by the user within the Bare Bitcoin
+        platform.
+         Note that this does NOT include any of the third party transactions imported into
+         the platform tax calculator.
+      operationId: TaxService_ListTaxTransactions
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListTaxTransactionsResponse"
+  /v1/user/applications/consent/{clientId}:
+    delete:
+      tags:
+        - UserService
+      summary: Revoke consent for a specific OAuth2 application
+      description: This endpoint can be called with any valid OAuth2-obtained token
+      operationId: UserService_RevokeConsent
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content: {}
   /v1/user/bitcoin-accounts:
     get:
       tags:
         - UserService
-      summary: Fetch bitcoin sub accounts
+      summary: Fetch bitcoin accounts
       description: |-
         Lists the bitcoin accounts for the user. Each bitcoin account has a
          separate balance. Every bitcoin transaction (withdrawal, deposit, trade,
          bonus payout) affects the balance of exactly one bitcoin account.
       operationId: UserService_ListBitcoinAccounts
+      parameters:
+        - name: includeDeleted
+          in: query
+          description: Include accounts that have previously been deleted.
+          schema:
+            type: boolean
       responses:
         "200":
           description: OK
@@ -238,7 +239,7 @@ paths:
       summary: Fetch user fiat information
       description: |-
         Fetches the fiat account. The fiat account for a user holds their NOK
-         balance. Every user has exactly one fiat account. Sub-accounts for a user
+         balance. Every user has exactly one fiat account. Other sub-accounts for a user
          only pertains to bitcoin holdings.
       operationId: UserService_GetFiatAccount
       responses:
@@ -270,6 +271,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VolumeResponse"
+      security:
+        - {}
+  /v1/volume/historic:
+    get:
+      tags:
+        - PublicService
+      summary: Fetch historic volume statistics
+      operationId: PublicService_VolumeHistoric
+      parameters:
+        - name: date
+          in: query
+          description: |-
+            The date to fetch the volume for. If empty, defaults to today.
+             Format: YYYY-MM-DD
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VolumeHistoricResponse"
       security:
         - {}
   /v1/withdrawals/bitcoin:
@@ -333,10 +357,27 @@ components:
             The current BTC holdings that can be used for trading or
             withdrawals.
           format: double
-        pendingOrdersBtc:
+        totalBtc:
           type: number
-          description: The current BTC holdings that are tied up in pending orders.
+          description: The BTC balance of the account.
           format: double
+        totalNok:
+          type: number
+          description: The NOK value of the BTC of the account, at the time of the request.
+          format: double
+        name:
+          type: string
+          description: The name of the account.
+        createTime:
+          type: string
+          description: When this account was created.
+          format: date-time
+        deleteTime:
+          type: string
+          description: |-
+            When this account was deleted.
+             Empty if the account is not deleted.
+          format: date-time
     DepositDestination:
       type: object
       properties:
@@ -344,7 +385,6 @@ components:
           type: string
         network:
           enum:
-            - NETWORK_UNSPECIFIED
             - NETWORK_BITCOIN
             - NETWORK_LIGHTNING
           type: string
@@ -368,7 +408,6 @@ components:
           description: The destination of the withdrawal.
         network:
           enum:
-            - NETWORK_UNSPECIFIED
             - NETWORK_BITCOIN
             - NETWORK_LIGHTNING
           type: string
@@ -386,7 +425,6 @@ components:
           format: double
         status:
           enum:
-            - WITHDRAWAL_STATUS_UNSPECIFIED
             - WITHDRAWAL_STATUS_PENDING
             - WITHDRAWAL_STATUS_COMPLETED
             - WITHDRAWAL_STATUS_FAILED
@@ -410,10 +448,6 @@ components:
             The current NOK holdings that can be used for trading or
              withdrawals.
           format: double
-        pendingOrdersNok:
-          type: number
-          description: The current NOK holdings that are tied up in pending orders.
-          format: double
     GetLightningInvoiceResponse:
       type: object
       properties:
@@ -423,7 +457,6 @@ components:
           type: string
         status:
           enum:
-            - INVOICE_STATUS_UNSPECIFIED
             - INVOICE_STATUS_UNPAID
             - INVOICE_STATUS_PENDING
             - INVOICE_STATUS_PAID
@@ -431,70 +464,25 @@ components:
             - INVOICE_STATUS_CANCELED
           type: string
           format: enum
-    LedgerAccountResponse:
-      type: object
-      properties: {}
-    LedgerEntry:
+    Info:
       type: object
       properties:
-        transactionId:
+        fullName:
           type: string
-          description: The ID of the transaction that resulted in this ledger entry.
-        type:
-          enum:
-            - ENTRY_TYPE_UNSPECIFIED
-            - ENTRY_TYPE_WITHDRAWAL
-            - ENTRY_TYPE_DEPOSIT
-            - ENTRY_TYPE_TRADE
-            - ENTRY_TYPE_TRANSFER
-            - ENTRY_TYPE_REWARD
+        country:
           type: string
-          format: enum
-        timestamp:
+          description: ISO-3166-1 alpha-2 country code
+        address:
           type: string
-          format: date-time
-        currency:
-          enum:
-            - CURRENCY_UNSPECIFIED
-            - CURRENCY_BTC
-            - CURRENCY_NOK
+        nin:
           type: string
-          description: >-
-            The currency of the ledger entry. Both the value and the balance are
-            in
-          format: enum
-        value:
-          type: number
-          description: >-
-            The value of the ledger entry. Negative indicates balance decrease,
-            positive
-             indicates balance increase. The fee is included in this value.
-          format: double
-        fee:
-          type: number
-          description: The fee associated with the ledger entry.
-          format: double
-        balance:
-          type: number
-          description: The balance after the transaction.
-          format: double
-      description: |-
-        TODO: investigate how other platforms do this.
-
-         Kraken: https://docs.kraken.com/api/docs/rest-api/get-ledgers
-
-         Been told Kraken is good!
-
-         A ledger entry is a balance-affecting transaction. One action
-         on the platform can result in multiple ledger entries. For example, a
-         trade results in distinct BTC and NOK ledger entries.
-    LedgerUserResponse:
-      type: object
-      properties:
-        entries:
-          type: array
-          items:
-            $ref: "#/components/schemas/LedgerEntry"
+          description: |-
+            NIN (national ID number/passport number/driver license number)
+             is only required if the TFR config said so
+        exchange:
+          type: string
+        selfCustody:
+          type: boolean
     ListBitcoinAccountsResponse:
       type: object
       properties:
@@ -502,6 +490,23 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BitcoinAccount"
+        totalBtc:
+          type: number
+          description: The total BTC balance of all accounts.
+          format: double
+        totalNok:
+          type: number
+          description: |-
+            The total NOK value of the BTC of all accounts,
+             at the time of the request.
+          format: double
+    ListTaxTransactionsResponse:
+      type: object
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaxTransaction"
     NewLightningInvoiceRequest:
       type: object
       properties:
@@ -510,7 +515,6 @@ components:
           description: if empty, the default account is used.
         currency:
           enum:
-            - CURRENCY_UNSPECIFIED
             - CURRENCY_BTC
             - CURRENCY_NOK
           type: string
@@ -548,14 +552,12 @@ components:
       properties:
         type:
           enum:
-            - ORDER_TYPE_UNSPECIFIED
             - ORDER_TYPE_MARKET
             - ORDER_TYPE_LIMIT
           type: string
           format: enum
         direction:
           enum:
-            - DIRECTION_UNSPECIFIED
             - DIRECTION_BUY
             - DIRECTION_SELL
           type: string
@@ -608,14 +610,12 @@ components:
           type: string
         type:
           enum:
-            - ORDER_TYPE_UNSPECIFIED
             - ORDER_TYPE_MARKET
             - ORDER_TYPE_LIMIT
           type: string
           format: enum
         direction:
           enum:
-            - DIRECTION_UNSPECIFIED
             - DIRECTION_BUY
             - DIRECTION_SELL
           type: string
@@ -691,6 +691,13 @@ components:
             Free-form text description of the withdrawal. Can be used to
             correlate with
              your own systems.
+        tfrInfo:
+          allOf:
+            - $ref: "#/components/schemas/Info"
+          description: >-
+            The recipient of this transaction, per EU's travel rule. Required
+            for all
+             withdrawals to new destinations.
     SendBitcoinResponse:
       type: object
       properties:
@@ -699,14 +706,12 @@ components:
           description: The ID of the initiated withdrawal.
         network:
           enum:
-            - NETWORK_UNSPECIFIED
             - NETWORK_BITCOIN
             - NETWORK_LIGHTNING
           type: string
           format: enum
         status:
           enum:
-            - WITHDRAWAL_STATUS_UNSPECIFIED
             - WITHDRAWAL_STATUS_PENDING
             - WITHDRAWAL_STATUS_COMPLETED
             - WITHDRAWAL_STATUS_FAILED
@@ -716,6 +721,62 @@ components:
             succeed,
              if sending to another user of the Bare Bitcoin platform.
           format: enum
+    TaxTransaction:
+      type: object
+      properties:
+        id:
+          type: string
+        accountId:
+          type: string
+        type:
+          enum:
+            - TAX_TRANSACTION_TYPE_BTC_BUY
+            - TAX_TRANSACTION_TYPE_BTC_SELL
+            - TAX_TRANSACTION_TYPE_BTC_WITHDRAWAL
+            - TAX_TRANSACTION_TYPE_BTC_DEPOSIT
+            - TAX_TRANSACTION_TYPE_BTC_BONUS
+            - TAX_TRANSACTION_TYPE_FIAT_DEPOSIT
+            - TAX_TRANSACTION_TYPE_FIAT_WITHDRAWAL
+          type: string
+          format: enum
+        subType:
+          type: string
+        createTime:
+          type: string
+          format: date-time
+        finalizeTime:
+          type: string
+          format: date-time
+        inAmount:
+          type: string
+          description: Stringified decimal number
+        inCurrency:
+          type: string
+        outAmount:
+          type: string
+          description: Stringified decimal number
+        outCurrency:
+          type: string
+        feeAmount:
+          type: string
+          description: Stringified decimal number
+        feeCurrency:
+          type: string
+        rateMarket:
+          type: string
+          description: Stringified decimal number
+        isPayment:
+          type: boolean
+        paymentInfo:
+          type: string
+        note:
+          type: string
+        usdnok:
+          type: string
+          description: Stringified decimal number
+        runningBalanceBtc:
+          type: string
+          description: Stringified decimal number
     UserPrice:
       type: object
       properties:
@@ -728,6 +789,47 @@ components:
       description: |-
         The prices a user can expect to pay for a given amount of BTCNOK,
          with a given payment method.
+    VolumeHistoricResponse:
+      type: object
+      properties:
+        dailyVolume:
+          type: array
+          items:
+            $ref: "#/components/schemas/VolumeHistoricResponse_DailyVolume"
+        shareOfTotalVolume:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+          description: Each market's share of the total volume for the period in question.
+    VolumeHistoricResponse_DailyVolume:
+      type: object
+      properties:
+        date:
+          type: string
+          description: YYYY-MM-DD
+        stats:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/VolumeHistoricResponse_MarketStats"
+          description: Each market's volume for the day.
+    VolumeHistoricResponse_MarketStats:
+      type: object
+      properties:
+        name:
+          type: string
+        color:
+          type: string
+        volumeNok:
+          type: number
+          format: double
+        volumeBtc:
+          type: number
+          format: double
+        shareOfTotalVolume:
+          type: number
+          description: Share of the total volume for the day in question.
+          format: double
     VolumeResponse:
       type: object
       properties:
@@ -778,10 +880,10 @@ tags:
     description: |-
       Transfer bitcoin in and out of the platform. Fetch information about past
        bitcoin transfers.
-  - name: LedgerService
   - name: PublicService
     description: Public endpoints that don't require authentication
+  - name: TaxService
   - name: TradingService
     description: Execute and cancel orders. Fetch information about past orders.
   - name: UserService
-    description: Fetch information the authenticated user and it sub accounts.
+    description: Fetch information the authenticated user and its bitcoin accounts.
