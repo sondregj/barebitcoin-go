@@ -17,7 +17,7 @@ func init() {
 
 var historyCmd = &cobra.Command{
 	Use:   "history",
-	Short: "Fetch ledger history",
+	Short: "Fetch transaction history",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := barebitcoin.NewHTTPClient()
 		return runHistoryCmd(cmd.Context(), client, historyLimit)
@@ -25,25 +25,30 @@ var historyCmd = &cobra.Command{
 }
 
 func runHistoryCmd(ctx context.Context, client *barebitcoin.HTTPClient, limit int) error {
-	ledger, err := client.GetLedger(ctx)
+	resp, err := client.GetTaxTransactions(ctx)
 	if err != nil {
 		return err
 	}
 
-	entries := ledger.Entries
+	entries := resp.Transactions
 	if limit > 0 && len(entries) > limit {
 		entries = entries[len(entries)-limit:]
 	}
 
 	for _, entry := range entries {
 		fmt.Println("entry {")
-		fmt.Println("  id", entry.TransactionID)
+		fmt.Println("  id", entry.ID)
 		fmt.Println("  type", entry.Type)
-		fmt.Printf("  timestamp %q\n", entry.Timestamp)
-		fmt.Println("  currency", entry.Currency)
-		fmt.Println("  value", entry.Value)
-		fmt.Println("  fee", entry.Fee)
-		fmt.Println("  balance", entry.Balance)
+		fmt.Printf("  created %q\n", entry.CreateTime)
+		if entry.InAmount != "" {
+			fmt.Println("  in", entry.InAmount, entry.InCurrency)
+		}
+		if entry.OutAmount != "" {
+			fmt.Println("  out", entry.OutAmount, entry.OutCurrency)
+		}
+		if entry.FeeAmount != "" {
+			fmt.Println("  fee", entry.FeeAmount, entry.FeeCurrency)
+		}
 		fmt.Println("}")
 	}
 	return nil

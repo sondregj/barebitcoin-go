@@ -110,16 +110,6 @@ type GetLightningInvoiceResponse struct {
 	Status               LightningInvoiceStatus `json:"status"`
 }
 
-type LedgerEntry struct {
-	TransactionID string    `json:"transactionId"`
-	Type          string    `json:"type"`
-	Timestamp     time.Time `json:"timestamp"`
-	Currency      string    `json:"currency"`
-	Value         float64   `json:"value"`
-	Fee           float64   `json:"fee"`
-	Balance       float64   `json:"balance"`
-}
-
 type WithdrawalStatus string
 
 const (
@@ -210,26 +200,6 @@ func (c *HTTPClient) CreateLightningInvoice(ctx context.Context, req *NewLightni
 func (c *HTTPClient) GetLightningInvoice(ctx context.Context, id string) (*GetLightningInvoiceResponse, error) {
 	var response GetLightningInvoiceResponse
 	err := c.doGetRequest(ctx, "/v1/deposit-destinations/bitcoin/invoice/"+id, &response)
-	return &response, err
-}
-
-type GetLedgerResponse struct {
-	Entries []LedgerEntry `json:"entries"`
-}
-
-func (c *HTTPClient) GetLedger(ctx context.Context) (*GetLedgerResponse, error) {
-	var response GetLedgerResponse
-	err := c.doGetRequest(ctx, "/v1/ledger", &response)
-	return &response, err
-}
-
-type GetLedgerAccountResponse struct {
-	Entries []LedgerEntry `json:"entries"`
-}
-
-func (c *HTTPClient) GetLedgerAccount(ctx context.Context, accountID string) (*GetLedgerAccountResponse, error) {
-	var response GetLedgerAccountResponse
-	err := c.doGetRequest(ctx, "/v1/ledger/"+accountID, &response)
 	return &response, err
 }
 
