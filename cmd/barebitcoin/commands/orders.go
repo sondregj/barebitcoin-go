@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -27,17 +28,20 @@ func runOrdersCmd(ctx context.Context, client *barebitcoin.HTTPClient) error {
 		fmt.Println("no open orders")
 		return nil
 	}
-	fmt.Println("orders {")
+
+	var buf bytes.Buffer
+	w := newTabWriter(&buf)
+	fmt.Fprintln(w, "ID\tTYPE\tDIRECTION\tAMOUNT\tCREATED")
 	for _, order := range resp.Orders {
-		fmt.Println("  order {")
-		fmt.Println("    id", order.OrderID)
-		fmt.Println("    type", order.Type)
-		fmt.Println("    direction", order.Direction)
-		fmt.Println("    amount", order.Amount)
-		fmt.Printf("    created %q\n", order.CreatedAt)
-		fmt.Println("  }")
+		fmt.Fprintf(w, "%s\t%s\t%s\t%g\t%s\n",
+			order.OrderID,
+			order.Type,
+			order.Direction,
+			order.Amount,
+			order.CreatedAt.Format("2006-01-02 15:04:05"),
+		)
 	}
-	fmt.Println("}")
+	flushTable(w, &buf)
 	return nil
 }
 

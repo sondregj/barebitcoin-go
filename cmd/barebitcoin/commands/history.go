@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -35,21 +36,19 @@ func runHistoryCmd(ctx context.Context, client *barebitcoin.HTTPClient, limit in
 		entries = entries[len(entries)-limit:]
 	}
 
+	var buf bytes.Buffer
+	w := newTabWriter(&buf)
+	fmt.Fprintln(w, "ID\tTYPE\tCREATED\tIN\tOUT\tFEE")
 	for _, entry := range entries {
-		fmt.Println("entry {")
-		fmt.Println("  id", entry.ID)
-		fmt.Println("  type", entry.Type)
-		fmt.Printf("  created %q\n", entry.CreateTime)
-		if entry.InAmount != "" {
-			fmt.Println("  in", entry.InAmount, entry.InCurrency)
-		}
-		if entry.OutAmount != "" {
-			fmt.Println("  out", entry.OutAmount, entry.OutCurrency)
-		}
-		if entry.FeeAmount != "" {
-			fmt.Println("  fee", entry.FeeAmount, entry.FeeCurrency)
-		}
-		fmt.Println("}")
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s %s\t%s %s\t%s %s\n",
+			entry.ID,
+			entry.Type,
+			entry.CreateTime.Format("2006-01-02 15:04:05"),
+			entry.InAmount, entry.InCurrency,
+			entry.OutAmount, entry.OutCurrency,
+			entry.FeeAmount, entry.FeeCurrency,
+		)
 	}
+	flushTable(w, &buf)
 	return nil
 }

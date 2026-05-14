@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -28,16 +29,19 @@ func runReceiveCmd(ctx context.Context, accountID string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("destinations {")
+
+	var buf bytes.Buffer
+	w := newTabWriter(&buf)
+	fmt.Fprintln(w, "NETWORK\tDESTINATION")
 	if resp.OnchainAddress != nil {
-		fmt.Println("  onchain", resp.OnchainAddress.Destination)
+		fmt.Fprintf(w, "onchain\t%s\n", resp.OnchainAddress.Destination)
 	}
 	if resp.LightningAddress != nil {
-		fmt.Println("  lightning address", resp.LightningAddress.Destination)
+		fmt.Fprintf(w, "lightning\t%s\n", resp.LightningAddress.Destination)
 	}
 	if resp.LNURLPay != nil {
-		fmt.Println("  lnurl", resp.LNURLPay.Destination)
+		fmt.Fprintf(w, "lnurl\t%s\n", resp.LNURLPay.Destination)
 	}
-	fmt.Println("}")
+	flushTable(w, &buf)
 	return nil
 }

@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -35,26 +36,27 @@ func runHoldingsCmd(
 	if err != nil {
 		return err
 	}
-	fmt.Println("accounts {")
+
+	var buf bytes.Buffer
+	w := newTabWriter(&buf)
+	fmt.Fprintln(w, "ID\tNAME\tAVAILABLE BTC\tTOTAL BTC\tTOTAL NOK")
 	for _, account := range user.Accounts {
-		fmt.Println("  account {")
-		fmt.Println("    id", account.ID)
-		fmt.Println("    name", account.Name)
-		fmt.Println("    available btc", account.AvailableBTC)
-		fmt.Println("    total btc", account.TotalBTC)
-		fmt.Println("    total nok", account.TotalNOK)
-		fmt.Println("  }")
+		fmt.Fprintf(w, "%s\t%s\t%g\t%g\t%g\n",
+			account.ID,
+			account.Name,
+			account.AvailableBTC,
+			account.TotalBTC,
+			account.TotalNOK,
+		)
 	}
-	fmt.Println("}")
-	fmt.Println("total btc", user.TotalBTC)
-	fmt.Println("total nok", user.TotalNOK)
+	flushTable(w, &buf)
+
+	fmt.Printf("\ntotal btc  %g\ntotal nok  %g\n", user.TotalBTC, user.TotalNOK)
 
 	fiat, err := client.GetFiatAccount(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Println("fiat {")
-	fmt.Println("  available nok", fiat.AvailableNOK)
-	fmt.Println("}")
+	fmt.Printf("fiat nok   %g\n", fiat.AvailableNOK)
 	return nil
 }
