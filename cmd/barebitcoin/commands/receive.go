@@ -20,12 +20,13 @@ var receiveCmd = &cobra.Command{
 	Use:   "receive",
 	Short: "Show bitcoin deposit addresses",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runReceiveCmd(cmd.Context(), receiveAccountID)
+		client := barebitcoin.NewHTTPClient()
+		return runReceiveCmd(cmd.Context(), client, receiveAccountID)
 	},
 }
 
-func runReceiveCmd(ctx context.Context, accountID string) error {
-	resp, err := barebitcoin.ListBitcoinDepositDestinations(ctx, accountID)
+func runReceiveCmd(ctx context.Context, client *barebitcoin.HTTPClient, accountID string) error {
+	resp, err := client.ListBitcoinDepositDestinations(ctx, accountID)
 	if err != nil {
 		return err
 	}

@@ -150,15 +150,9 @@ type PriceResponse struct {
 	Bank UserPrice `json:"bank"`
 }
 
-func FetchBitcoinNOKPrice(ctx context.Context, amount float64) (*PriceResponse, error) {
+func FetchBitcoinNOKPrice(ctx context.Context) (*PriceResponse, error) {
 	client := NewHTTPClient()
-	var response PriceResponse
-	path := "/v1/price/nok"
-	if amount > 0 {
-		path += "?amount=" + strconv.FormatFloat(amount, 'f', -1, 64)
-	}
-	err := client.doGetRequest(ctx, path, &response)
-	return &response, err
+	return client.GetPrice(ctx, 0)
 }
 
 type Network string
@@ -180,14 +174,13 @@ type DepositDestinationsResponse struct {
 	LNURLPay         *DepositDestination `json:"lnurlPay,omitempty"`
 }
 
-func ListBitcoinDepositDestinations(ctx context.Context, accountID string) (*DepositDestinationsResponse, error) {
-	client := NewHTTPClient()
+func (c *HTTPClient) ListBitcoinDepositDestinations(ctx context.Context, accountID string) (*DepositDestinationsResponse, error) {
 	var response DepositDestinationsResponse
 	path := "/v1/deposit-destinations/bitcoin"
 	if accountID != "" {
 		path += "?accountId=" + accountID
 	}
-	err := client.doGetRequest(ctx, path, &response)
+	err := c.doGetRequest(ctx, path, &response)
 	return &response, err
 }
 
