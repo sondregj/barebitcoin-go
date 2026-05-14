@@ -10,3 +10,5 @@
 # go
 /bin
 /barebitcoin
+# Added by goreleaser init:
+dist/
