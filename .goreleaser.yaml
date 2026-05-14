@@ -16,7 +16,9 @@ before:
     - go generate ./...
 
 builds:
-  - main: ./...
+  - main: ./cmd/barebitcoin
+    id: barebitcoin
+    binary: barebitcoin
     env:
       - CGO_ENABLED=0
     goos:
