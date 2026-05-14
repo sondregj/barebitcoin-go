@@ -48,5 +48,13 @@ func runHoldingsCmd(
 	fmt.Println("}")
 	fmt.Println("total btc", user.TotalBTC)
 	fmt.Println("total nok", user.TotalNOK)
+
+	fiat, err := client.GetFiatAccount(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println("fiat {")
+	fmt.Println("  available nok", fiat.AvailableNOK)
+	fmt.Println("}")
 	return nil
 }
