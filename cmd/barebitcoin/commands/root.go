@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -26,6 +28,7 @@ func init() {
 	// TODO: user info
 }
 
-func Execute() error {
+func Execute(version, commit, date string) error {
+	rootCmd.Version = fmt.Sprintf("%s (commit %s, built %s)", version, commit, date)
 	return rootCmd.Execute()
 }
