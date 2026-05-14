@@ -26,7 +26,7 @@ func main() {
 	switch command {
 
 	case "price":
-		price, err := client.GetPrice(ctx)
+		price, err := client.GetPrice(ctx, 0)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -44,25 +44,24 @@ func main() {
 		os.Exit(1)
 
 	case "holdings":
-		user, err := client.GetBitcoinAccounts(ctx)
+		user, err := client.GetBitcoinAccounts(ctx, false)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		var totalAvailableBTC, totalPendingOrdersBTC float64
 		fmt.Println("accounts {")
 		for _, account := range user.Accounts {
 			fmt.Println("  account {")
 			fmt.Println("    id", account.ID)
-			fmt.Println("    available bitcoin", account.AvailableBTC)
-			fmt.Println("    pending orders bitcoin", account.PendingOrdersBTC)
+			fmt.Println("    name", account.Name)
+			fmt.Println("    available btc", account.AvailableBTC)
+			fmt.Println("    total btc", account.TotalBTC)
+			fmt.Println("    total nok", account.TotalNOK)
 			fmt.Println("  }")
-			totalAvailableBTC += account.AvailableBTC
-			totalPendingOrdersBTC += account.PendingOrdersBTC
 		}
 		fmt.Println("}")
-		fmt.Println("total available bitcoin", totalAvailableBTC)
-		fmt.Println("total pending orders bitcoin", totalPendingOrdersBTC)
+		fmt.Println("total btc", user.TotalBTC)
+		fmt.Println("total nok", user.TotalNOK)
 
 	case "stats":
 		fmt.Println("error: stats not implemented")

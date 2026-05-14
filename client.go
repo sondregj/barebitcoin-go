@@ -160,10 +160,14 @@ type PriceResponse struct {
 	Bank UserPrice `json:"bank"`
 }
 
-func FetchBitcoinNOKPrice(ctx context.Context) (*PriceResponse, error) {
+func FetchBitcoinNOKPrice(ctx context.Context, amount float64) (*PriceResponse, error) {
 	client := NewHTTPClient()
 	var response PriceResponse
-	err := client.doGetRequest(ctx, "/v1/price/nok", &response)
+	path := "/v1/price/nok"
+	if amount > 0 {
+		path += "?amount=" + strconv.FormatFloat(amount, 'f', -1, 64)
+	}
+	err := client.doGetRequest(ctx, path, &response)
 	return &response, err
 }
 
@@ -307,10 +311,13 @@ func (c *HTTPClient) DeleteOrder(ctx context.Context, orderID string) error {
 
 // Public service
 
-func (c *HTTPClient) GetPrice(ctx context.Context) (*PriceResponse, error) {
+func (c *HTTPClient) GetPrice(ctx context.Context, amount float64) (*PriceResponse, error) {
 	var response PriceResponse
 	path := "/v1/price/nok"
 	// Does not require authentication
+	if amount > 0 {
+		path += "?amount=" + strconv.FormatFloat(amount, 'f', -1, 64)
+	}
 	err := c.doGetRequest(ctx, path, &response)
 	return &response, err
 }
@@ -327,14 +334,87 @@ type VolumeResponse struct {
 	Yearly  VolumeStats `json:"yearly"`
 }
 
-func (c *HTTPClient) GetVolume(ctx context.Context, currency string) (*VolumeResponse, error) {
+func (c *HTTPClient) GetVolume(ctx context.Context, date string) (*VolumeResponse, error) {
 	var response VolumeResponse
 	path := "/v1/volume"
-	if currency != "" {
-		path += "?currency=" + currency
+	if date != "" {
+		path += "?date=" + date
+	}
+	err := c.doGetRequest(ctx, path, &response)
+	return &response, err
+}
+
+type VolumeHistoricResponse struct {
+	DailyVolume        []VolumeHistoricDailyVolume `json:"dailyVolume"`
+	ShareOfTotalVolume map[string]float64          `json:"shareOfTotalVolume"`
+}
+
+type VolumeHistoricDailyVolume struct {
+	Date  string                               `json:"date"`
+	Stats map[string]VolumeHistoricMarketStats `json:"stats"`
+}
+
+type VolumeHistoricMarketStats struct {
+	Name               string  `json:"name"`
+	Color              string  `json:"color"`
+	VolumeNOK          float64 `json:"volumeNok"`
+	VolumeBTC          float64 `json:"volumeBtc"`
+	ShareOfTotalVolume float64 `json:"shareOfTotalVolume"`
+}
+
+func (c *HTTPClient) GetVolumeHistoric(ctx context.Context, date string) (*VolumeHistoricResponse, error) {
+	var response VolumeHistoricResponse
+	path := "/v1/volume/historic"
+	if date != "" {
+		path += "?date=" + date
 	}
 	// Does not require authentication
 	err := c.doGetRequest(ctx, path, &response)
+	return &response, err
+}
+
+// Tax service
+
+type TaxTransactionType string
+
+const (
+	TaxTransactionTypeBTCBuy         TaxTransactionType = "TAX_TRANSACTION_TYPE_BTC_BUY"
+	TaxTransactionTypeBTCSell        TaxTransactionType = "TAX_TRANSACTION_TYPE_BTC_SELL"
+	TaxTransactionTypeBTCWithdrawal  TaxTransactionType = "TAX_TRANSACTION_TYPE_BTC_WITHDRAWAL"
+	TaxTransactionTypeBTCDeposit     TaxTransactionType = "TAX_TRANSACTION_TYPE_BTC_DEPOSIT"
+	TaxTransactionTypeBTCBonus       TaxTransactionType = "TAX_TRANSACTION_TYPE_BTC_BONUS"
+	TaxTransactionTypeFiatDeposit    TaxTransactionType = "TAX_TRANSACTION_TYPE_FIAT_DEPOSIT"
+	TaxTransactionTypeFiatWithdrawal TaxTransactionType = "TAX_TRANSACTION_TYPE_FIAT_WITHDRAWAL"
+)
+
+type TaxTransaction struct {
+	ID                string             `json:"id"`
+	AccountID         string             `json:"accountId"`
+	Type              TaxTransactionType `json:"type"`
+	SubType           string             `json:"subType"`
+	CreateTime        time.Time          `json:"createTime"`
+	FinalizeTime      time.Time          `json:"finalizeTime"`
+	InAmount          string             `json:"inAmount"`
+	InCurrency        string             `json:"inCurrency"`
+	OutAmount         string             `json:"outAmount"`
+	OutCurrency       string             `json:"outCurrency"`
+	FeeAmount         string             `json:"feeAmount"`
+	FeeCurrency       string             `json:"feeCurrency"`
+	RateMarket        string             `json:"rateMarket"`
+	IsPayment         bool               `json:"isPayment"`
+	PaymentInfo       string             `json:"paymentInfo"`
+	Note              string             `json:"note"`
+	USDNOK            string             `json:"usdnok"`
+	RunningBalanceBTC string             `json:"runningBalanceBtc"`
+}
+
+type ListTaxTransactionsResponse struct {
+	Transactions []TaxTransaction `json:"transactions"`
+}
+
+func (c *HTTPClient) GetTaxTransactions(ctx context.Context) (*ListTaxTransactionsResponse, error) {
+	var response ListTaxTransactionsResponse
+	err := c.doGetRequest(ctx, "/v1/tax/transactions", &response)
 	return &response, err
 }
 
@@ -342,29 +422,52 @@ func (c *HTTPClient) GetVolume(ctx context.Context, currency string) (*VolumeRes
 
 type ListBitcoinAccountsResponse struct {
 	Accounts []BitcoinAccount `json:"accounts"`
+	TotalBTC float64          `json:"totalBtc"`
+	TotalNOK float64          `json:"totalNok"`
 }
 
 type BitcoinAccount struct {
-	ID               string  `json:"id"`
-	AvailableBTC     float64 `json:"availableBtc"`
-	PendingOrdersBTC float64 `json:"pendingOrdersBtc"`
+	ID           string     `json:"id"`
+	AvailableBTC float64    `json:"availableBtc"`
+	TotalBTC     float64    `json:"totalBtc"`
+	TotalNOK     float64    `json:"totalNok"`
+	Name         string     `json:"name"`
+	CreateTime   time.Time  `json:"createTime"`
+	DeleteTime   *time.Time `json:"deleteTime,omitempty"`
 }
 
-func (c *HTTPClient) GetBitcoinAccounts(ctx context.Context) (*ListBitcoinAccountsResponse, error) {
+func (c *HTTPClient) GetBitcoinAccounts(ctx context.Context, includeDeleted bool) (*ListBitcoinAccountsResponse, error) {
 	var response ListBitcoinAccountsResponse
-	err := c.doGetRequest(ctx, "/v1/user/bitcoin-accounts", &response)
+	path := "/v1/user/bitcoin-accounts"
+	if includeDeleted {
+		path += "?includeDeleted=true"
+	}
+	err := c.doGetRequest(ctx, path, &response)
 	return &response, err
 }
 
 type GetFiatAccountResponse struct {
-	AvailableNOK     float64 `json:"availableNok"`
-	PendingOrdersNOK float64 `json:"pendingOrdersNok"`
+	AvailableNOK float64 `json:"availableNok"`
 }
 
 func (c *HTTPClient) GetFiatAccount(ctx context.Context) (*GetFiatAccountResponse, error) {
 	var response GetFiatAccountResponse
 	err := c.doGetRequest(ctx, "/v1/user/fiat-account", &response)
 	return &response, err
+}
+
+func (c *HTTPClient) RevokeConsent(ctx context.Context, clientID string) error {
+	return c.doDeleteRequest(ctx, "/v1/user/applications/consent/"+clientID, nil)
+}
+
+// Info contains travel rule information for a bitcoin withdrawal.
+type Info struct {
+	FullName    string `json:"fullName"`
+	Country     string `json:"country"`
+	Address     string `json:"address"`
+	NIN         string `json:"nin"`
+	Exchange    string `json:"exchange"`
+	SelfCustody bool   `json:"selfCustody"`
 }
 
 type SendBitcoinRequest struct {
@@ -394,6 +497,9 @@ type SendBitcoinRequest struct {
 	// transaction is exported for tax purposes. It has no effect on the
 	// bitcoin transaction itself.
 	IsPayment bool `json:"isPayment,omitempty"`
+
+	// Travel rule information. May be required for certain destinations.
+	TfrInfo *Info `json:"tfrInfo,omitempty"`
 }
 
 type SendBitcoinResponse struct {
