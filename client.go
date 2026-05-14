@@ -260,11 +260,7 @@ type NewOrderResponse struct {
 
 func (c *HTTPClient) CreateOrder(ctx context.Context, req *NewOrderRequest) (*NewOrderResponse, error) {
 	var response NewOrderResponse
-	body, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling request: %w", err)
-	}
-	err = c.doPostRequest(ctx, "/v1/orders", body, &response)
+	err := c.doPostRequest(ctx, "/v1/orders", req, &response)
 	return &response, err
 }
 
