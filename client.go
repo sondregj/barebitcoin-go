@@ -32,12 +32,14 @@ type HTTPClient struct {
 
 // NewHTTPClient creates a new HTTP client using environment variables for API keys.
 func NewHTTPClient() *HTTPClient {
-	if os.Getenv(EnvPublicKey) == "" || os.Getenv(EnvSecretKey) == "" {
+	apiKey := os.Getenv(EnvPublicKey)
+	secretKey := os.Getenv(EnvSecretKey)
+	if apiKey == "" || secretKey == "" {
 		panic("BAREBITCOIN_PUBLIC_KEY and BAREBITCOIN_SECRET_KEY environment variables must be set")
 	}
 	return &HTTPClient{
-		apiKey:    os.Getenv(EnvPublicKey),
-		secretKey: os.Getenv(EnvSecretKey),
+		apiKey:    apiKey,
+		secretKey: secretKey,
 		baseURL:   BaseURL,
 		client:    &http.Client{Timeout: 30 * time.Second},
 	}
@@ -122,7 +124,7 @@ const (
 type GetBitcoinWithdrawalResponse struct {
 	WithdrawalID string           `json:"withdrawalId"`
 	Destination  string           `json:"destination"`
-	Network      string           `json:"network"`
+	Network      Network          `json:"network"`
 	AmountBTC    float64          `json:"amountBtc"`
 	AmountNOK    float64          `json:"amountNok"`
 	Status       WithdrawalStatus `json:"status"`
@@ -197,11 +199,11 @@ func (c *HTTPClient) GetLightningInvoice(ctx context.Context, id string) (*GetLi
 }
 
 type Order struct {
-	OrderID   string    `json:"orderId"`
-	Type      OrderType `json:"type"`
-	Direction string    `json:"direction"`
-	Amount    float64   `json:"amount"`
-	CreatedAt time.Time `json:"createdAt"`
+	OrderID   string         `json:"orderId"`
+	Type      OrderType      `json:"type"`
+	Direction OrderDirection `json:"direction"`
+	Amount    float64        `json:"amount"`
+	CreatedAt time.Time      `json:"createdAt"`
 }
 
 type OpenOrdersResponse struct {
@@ -419,8 +421,8 @@ func (c *HTTPClient) RevokeConsent(ctx context.Context, clientID string) error {
 	return c.doDeleteRequest(ctx, "/v1/user/applications/consent/"+clientID, nil)
 }
 
-// Info contains travel rule information for a bitcoin withdrawal.
-type Info struct {
+// TFRInfo contains travel rule information for a bitcoin withdrawal.
+type TFRInfo struct {
 	FullName    string `json:"fullName"`
 	Country     string `json:"country"`
 	Address     string `json:"address"`
@@ -458,7 +460,7 @@ type SendBitcoinRequest struct {
 	IsPayment bool `json:"isPayment,omitempty"`
 
 	// Travel rule information. May be required for certain destinations.
-	TfrInfo *Info `json:"tfrInfo,omitempty"`
+	TFRInfo *TFRInfo `json:"tfrInfo,omitempty"`
 }
 
 type SendBitcoinResponse struct {
@@ -476,9 +478,9 @@ func (c *HTTPClient) SendBitcoin(ctx context.Context, req *SendBitcoinRequest) (
 	return &response, err
 }
 
-func (c *HTTPClient) GetBitcoinWithdrawal(ctx context.Context, withdrawalId string) (*GetBitcoinWithdrawalResponse, error) {
+func (c *HTTPClient) GetBitcoinWithdrawal(ctx context.Context, withdrawalID string) (*GetBitcoinWithdrawalResponse, error) {
 	var response GetBitcoinWithdrawalResponse
-	err := c.doGetRequest(ctx, "/v1/withdrawals/bitcoin/"+withdrawalId, &response)
+	err := c.doGetRequest(ctx, "/v1/withdrawals/bitcoin/"+withdrawalID, &response)
 	return &response, err
 }
 
