@@ -1,0 +1,48 @@
+name: Update OpenAPI spec
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # Every Monday at 08:00 UTC
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: Install prettier
+        run: npm install -g prettier
+
+      - name: Fetch latest spec
+        run: make openapi
+
+      - name: Check for diff
+        id: diff
+        run: |
+          if git diff --quiet openapi.yaml; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Open pull request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: update/openapi-spec
+          commit-message: "openapi: update spec"
+          title: "openapi: update spec"
+          body: |
+            Automated weekly update of `openapi.yaml` from the Bare Bitcoin API.
+
+            Please review the diff and update `client.go` accordingly.
+          labels: openapi
