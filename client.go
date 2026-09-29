@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"slices"
 	"strconv"
@@ -78,7 +79,8 @@ type NewLightningInvoiceRequest struct {
 	// for a specific amount of bitcoin.
 	Currency Currency `json:"currency"`
 
-	// The amount of the invoice, in the requested currency.
+	// The amount of the invoice, in the requested currency. Setting to 0
+	// creates an invoice where any amount is accepted.
 	Amount float64 `json:"amount"`
 
 	// Public description of the invoice. Shown to both the creator and the recipient of the invoice.
@@ -284,15 +286,17 @@ func (c *HTTPClient) GetPrice(ctx context.Context, amount float64) (*PriceRespon
 }
 
 type VolumeStats struct {
-	AmountNOK     float64 `json:"amountNok"`
-	AmountBTC     float64 `json:"amountBtc"`
-	BuyPercentage float64 `json:"buyPercentage"`
+	AmountNOK      float64 `json:"amountNok"`
+	AmountBTC      float64 `json:"amountBtc"`
+	BuyPercentage  float64 `json:"buyPercentage"`
+	NumberOfTrades int32   `json:"numberOfTrades"`
 }
 
 type VolumeResponse struct {
 	Daily   VolumeStats `json:"daily"`
 	Monthly VolumeStats `json:"monthly"`
 	Yearly  VolumeStats `json:"yearly"`
+	Last24h VolumeStats `json:"last24h"`
 }
 
 func (c *HTTPClient) GetVolume(ctx context.Context, date string) (*VolumeResponse, error) {
@@ -336,6 +340,36 @@ func (c *HTTPClient) GetVolumeHistoric(ctx context.Context, date string) (*Volum
 
 // Tax service
 
+type TaxAccountBalance struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+
+	// Stringified decimal number with 8 decimal places: the BTC balance of the account.
+	BalanceBTC string `json:"balanceBtc"`
+
+	// When this account was deleted. Nil if the account is not deleted.
+	// Only ever set when the request asked for deleted accounts.
+	DeleteTime *time.Time `json:"deleteTime,omitempty"`
+}
+
+type GetTaxBalanceResponse struct {
+	// Stringified decimal number: the user's NOK balance.
+	BalanceNOK      string              `json:"balanceNok"`
+	BitcoinAccounts []TaxAccountBalance `json:"bitcoinAccounts"`
+}
+
+// GetTaxBalance fetches the user's current balances: the NOK balance, and the
+// balance of each bitcoin account.
+func (c *HTTPClient) GetTaxBalance(ctx context.Context, includeDeleted bool) (*GetTaxBalanceResponse, error) {
+	var response GetTaxBalanceResponse
+	path := "/v1/tax/balance"
+	if includeDeleted {
+		path += "?includeDeleted=true"
+	}
+	err := c.doGetRequest(ctx, path, &response)
+	return &response, err
+}
+
 type TaxTransactionType string
 
 const (
@@ -369,13 +403,61 @@ type TaxTransaction struct {
 	RunningBalanceBTC string             `json:"runningBalanceBtc"`
 }
 
-type ListTaxTransactionsResponse struct {
-	Transactions []TaxTransaction `json:"transactions"`
+type ListTaxTransactionsRequest struct {
+	// Items per page (max 200). When 0, all matching transactions are returned.
+	PageSize int32
+
+	// Transactions are listed oldest first, so pagination walks forward in
+	// time. Only return transactions created after this time. Pass NextAfter
+	// from the previous response (together with NextAfterID) to fetch the
+	// next page.
+	After time.Time
+
+	// Pagination cursor tiebreaker. Pass NextAfterID from the previous
+	// response. Only meaningful together with After.
+	AfterID string
+
+	// Only return transactions created strictly before this time.
+	Before time.Time
 }
 
-func (c *HTTPClient) GetTaxTransactions(ctx context.Context) (*ListTaxTransactionsResponse, error) {
+type ListTaxTransactionsResponse struct {
+	Transactions []TaxTransaction `json:"transactions"`
+
+	// True if there are more transactions available after the last one returned.
+	HasMore bool `json:"hasMore"`
+
+	// Cursor for the next page: pass this as After in the next request.
+	NextAfter time.Time `json:"nextAfter"`
+
+	// Tiebreaker for the cursor: pass this as AfterID in the next request.
+	NextAfterID string `json:"nextAfterId"`
+}
+
+// GetTaxTransactions lists transactions relevant for tax calculation. If req
+// is nil, all transactions are returned.
+func (c *HTTPClient) GetTaxTransactions(ctx context.Context, req *ListTaxTransactionsRequest) (*ListTaxTransactionsResponse, error) {
 	var response ListTaxTransactionsResponse
-	err := c.doGetRequest(ctx, "/v1/tax/transactions", &response)
+	path := "/v1/tax/transactions"
+	if req != nil {
+		q := url.Values{}
+		if req.PageSize > 0 {
+			q.Set("pageSize", strconv.FormatInt(int64(req.PageSize), 10))
+		}
+		if !req.After.IsZero() {
+			q.Set("after", req.After.Format(time.RFC3339Nano))
+		}
+		if req.AfterID != "" {
+			q.Set("afterId", req.AfterID)
+		}
+		if !req.Before.IsZero() {
+			q.Set("before", req.Before.Format(time.RFC3339Nano))
+		}
+		if len(q) > 0 {
+			path += "?" + q.Encode()
+		}
+	}
+	err := c.doGetRequest(ctx, path, &response)
 	return &response, err
 }
 
