@@ -388,7 +388,7 @@ type TaxTransaction struct {
 	Type              TaxTransactionType `json:"type"`
 	SubType           string             `json:"subType"`
 	CreateTime        time.Time          `json:"createTime"`
-	FinalizeTime      time.Time          `json:"finalizeTime"`
+	FinalizeTime      *time.Time         `json:"finalizeTime,omitempty"` // Nil while the transaction is pending
 	InAmount          string             `json:"inAmount"`
 	InCurrency        string             `json:"inCurrency"`
 	OutAmount         string             `json:"outAmount"`
