@@ -25,6 +25,9 @@ func init() {
 	rootCmd.AddCommand(cancelCmd)
 	rootCmd.AddCommand(sendCmd)
 	rootCmd.AddCommand(receiveCmd)
+	rootCmd.AddCommand(balanceCmd)
+	rootCmd.AddCommand(volumeCmd)
+	rootCmd.AddCommand(consentCmd)
 	// TODO: user info
 }
 

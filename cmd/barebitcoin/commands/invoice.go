@@ -36,3 +36,30 @@ func runInvoiceCmd(ctx context.Context, client *barebitcoin.HTTPClient, args []s
 	fmt.Println(invoice.Invoice)
 	return nil
 }
+
+func init() {
+	invoiceCmd.AddCommand(invoiceStatusCmd)
+}
+
+var invoiceStatusCmd = &cobra.Command{
+	Use:   "status <id>",
+	Short: "Fetch the status of a Lightning invoice",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client := barebitcoin.NewHTTPClient()
+		return runInvoiceStatusCmd(cmd.Context(), client, args[0])
+	},
+}
+
+func runInvoiceStatusCmd(ctx context.Context, client *barebitcoin.HTTPClient, id string) error {
+	invoice, err := client.GetLightningInvoice(ctx, id)
+	if err != nil {
+		return err
+	}
+	fmt.Println("invoice {")
+	fmt.Println("  id", invoice.DepositDestinationID)
+	fmt.Println("  status", invoice.Status)
+	fmt.Println("  invoice", invoice.Invoice)
+	fmt.Println("}")
+	return nil
+}

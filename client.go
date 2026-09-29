@@ -327,6 +327,8 @@ type VolumeHistoricMarketStats struct {
 	ShareOfTotalVolume float64 `json:"shareOfTotalVolume"`
 }
 
+// NOTE: As of 2026-09-29, the API appears to ignore date: requesting
+// 2026-09-01 returned the most recent days (through 2026-09-27) instead.
 func (c *HTTPClient) GetVolumeHistoric(ctx context.Context, date string) (*VolumeHistoricResponse, error) {
 	var response VolumeHistoricResponse
 	path := "/v1/volume/historic"
@@ -560,6 +562,8 @@ func (c *HTTPClient) SendBitcoin(ctx context.Context, req *SendBitcoinRequest) (
 	return &response, err
 }
 
+// NOTE: As of 2026-09-29, the API responds with HTTP 500 rather than a 4xx
+// status when the withdrawal ID does not exist.
 func (c *HTTPClient) GetBitcoinWithdrawal(ctx context.Context, withdrawalID string) (*GetBitcoinWithdrawalResponse, error) {
 	var response GetBitcoinWithdrawalResponse
 	err := c.doGetRequest(ctx, "/v1/withdrawals/bitcoin/"+withdrawalID, &response)
