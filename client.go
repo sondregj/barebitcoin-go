@@ -603,6 +603,25 @@ func (c *HTTPClient) generateHMAC(method, path string, nonce uint64, body []byte
 	return digest, nil
 }
 
+// APIError is returned when the API responds with a non-successful status code.
+type APIError struct {
+	StatusCode int
+
+	// The gRPC status code and message from the response body, if present.
+	Code    int
+	Message string
+
+	// The raw response body.
+	Body []byte
+}
+
+func (e *APIError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("HTTP %d: %s", e.StatusCode, e.Message)
+	}
+	return fmt.Sprintf("HTTP %d: %s", e.StatusCode, string(e.Body))
+}
+
 func (c *HTTPClient) doRequest(ctx context.Context, method, path string, body, out any) error {
 	url := c.baseURL + path
 
@@ -652,7 +671,18 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, path string, body, o
 	}
 
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
+		apiErr := &APIError{StatusCode: resp.StatusCode, Body: respBody}
+		var status struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		}
+		// Not every error response is a gRPC status (e.g. HTML from a proxy), so
+		// ignore decode errors and leave Code and Message empty in that case.
+		if json.Unmarshal(respBody, &status) == nil {
+			apiErr.Code = status.Code
+			apiErr.Message = status.Message
+		}
+		return apiErr
 	}
 
 	if out != nil && len(respBody) > 0 {
