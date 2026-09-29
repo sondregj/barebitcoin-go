@@ -26,7 +26,7 @@ var historyCmd = &cobra.Command{
 }
 
 func runHistoryCmd(ctx context.Context, client *barebitcoin.HTTPClient, limit int) error {
-	resp, err := client.GetTaxTransactions(ctx)
+	resp, err := client.GetTaxTransactions(ctx, nil)
 	if err != nil {
 		return err
 	}
