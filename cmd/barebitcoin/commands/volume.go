@@ -23,6 +23,7 @@ func init() {
 var volumeCmd = &cobra.Command{
 	Use:   "volume",
 	Short: "Fetch BTCNOK trade volume statistics",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Does not require authentication
 		client := barebitcoin.NewHTTPClientWithKeys("", "")
