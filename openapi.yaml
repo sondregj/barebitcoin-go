@@ -66,6 +66,8 @@ paths:
         - apiKey: []
           apiHmac: []
           apiNonce: []
+        - oauth2:
+            - api:deposits:lightning:write
   /v1/deposit-destinations/bitcoin/invoice/{id}:
     get:
       tags:
@@ -90,6 +92,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GetLightningInvoiceResponse"
+      security:
+        - apiKey: []
+        - oauth2:
+            - api:deposits:lightning:read
   /v1/orders:
     get:
       tags:
@@ -174,6 +180,35 @@ paths:
                 $ref: "#/components/schemas/PriceResponse"
       security:
         - {}
+  /v1/tax/balance:
+    get:
+      tags:
+        - TaxService
+      summary: Fetch balances
+      description: |-
+        Fetches the user's current balances: the NOK balance, and the balance of
+         each bitcoin account.
+      operationId: TaxService_GetTaxBalance
+      parameters:
+        - name: includeDeleted
+          in: query
+          description: >-
+            Include accounts that have previously been deleted. Useful for
+            resolving
+             the name of an account referenced by an older transaction.
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetTaxBalanceResponse"
+      security:
+        - apiKey: []
+        - oauth2:
+            - api:accounts:bitcoin:read
   /v1/tax/transactions:
     get:
       tags:
@@ -185,6 +220,45 @@ paths:
          Note that this does NOT include any of the third party transactions imported into
          the platform tax calculator.
       operationId: TaxService_ListTaxTransactions
+      parameters:
+        - name: pageSize
+          in: query
+          description: >-
+            Items per page (max 200). When set to 0, all matching transactions
+            are returned.
+          schema:
+            type: integer
+            format: int32
+        - name: after
+          in: query
+          description: >-
+            Transactions are listed oldest first (required to compute
+            running_balance_btc
+             correctly), so pagination walks forward in time. Only return transactions
+             created after this time. Can be used standalone to filter down to a start
+             date; pass next_after from the previous response (together with
+             next_after_id) to fetch the next page.
+          schema:
+            type: string
+            format: date-time
+        - name: afterId
+          in: query
+          description: >-
+            Pagination cursor tiebreaker: when multiple transactions share the
+            same
+             create_time, this ID breaks the tie. Pass next_after_id from the previous
+             response. Only meaningful together with 'after'; ignored otherwise.
+          schema:
+            type: string
+        - name: before
+          in: query
+          description: >-
+            Only return transactions created strictly before this time. Filter
+            only,
+             does not affect pagination direction.
+          schema:
+            type: string
+            format: date-time
       responses:
         "200":
           description: OK
@@ -192,6 +266,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListTaxTransactionsResponse"
+      security:
+        - apiKey: []
+        - oauth2:
+            - api:tax:transactions:read
   /v1/user/applications/consent/{clientId}:
     delete:
       tags:
@@ -209,6 +287,9 @@ paths:
         "200":
           description: OK
           content: {}
+      security:
+        - apiKey: []
+        - oauth2: []
   /v1/user/bitcoin-accounts:
     get:
       tags:
@@ -232,6 +313,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListBitcoinAccountsResponse"
+      security:
+        - apiKey: []
+        - oauth2:
+            - api:accounts:bitcoin:read
   /v1/user/fiat-account:
     get:
       tags:
@@ -464,11 +549,27 @@ components:
             - INVOICE_STATUS_CANCELED
           type: string
           format: enum
+    GetTaxBalanceResponse:
+      type: object
+      properties:
+        balanceNok:
+          example: "12500.5"
+          type: string
+          description: "Stringified decimal number: the user's NOK balance."
+        bitcoinAccounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaxAccountBalance"
     Info:
       type: object
       properties:
         fullName:
           type: string
+          description: >-
+            Recipient name. For an organisation this is its registered name.
+            Required
+             for a private individual; optional for an organisation, which is identified
+             by the organisasjonsnummer in nin.
         country:
           type: string
           description: ISO-3166-1 alpha-2 country code
@@ -476,9 +577,10 @@ components:
           type: string
         nin:
           type: string
-          description: |-
-            NIN (national ID number/passport number/driver license number)
-             is only required if the TFR config said so
+          description: >-
+            The recipient's fødselsnummer, or a 9-digit organisasjonsnummer when
+            the
+             recipient is an organisation. Only required if the TFR config said so.
         exchange:
           type: string
         selfCustody:
@@ -507,6 +609,20 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TaxTransaction"
+        hasMore:
+          type: boolean
+          description: >-
+            True if there are more transactions available after the last one
+            returned.
+        nextAfter:
+          type: string
+          description: "Cursor for the next page: pass this as 'after' in the next request."
+          format: date-time
+        nextAfterId:
+          type: string
+          description: >-
+            Tiebreaker for the cursor: pass this as 'after_id' in the next
+            request.
     NewLightningInvoiceRequest:
       type: object
       properties:
@@ -525,7 +641,9 @@ components:
           format: enum
         amount:
           type: number
-          description: The amount of the invoice, in the requested currency.
+          description: |-
+            The amount of the invoice, in the requested currency. Setting to 0
+             creates an invoice where any amount is accepted.
           format: double
         publicDescription:
           type: string
@@ -721,13 +839,43 @@ components:
             succeed,
              if sending to another user of the Bare Bitcoin platform.
           format: enum
+    TaxAccountBalance:
+      type: object
+      properties:
+        id:
+          example: acc_01HQZX3V9KJ4M2P8R6T0W5Y7BC
+          type: string
+        name:
+          example: Sparekonto
+          type: string
+        balanceBtc:
+          example: "1.89975850"
+          type: string
+          description: >-
+            Stringified decimal number with 8 decimal places: the BTC balance of
+            the
+             account.
+        deleteTime:
+          example: "2025-11-14T09:03:11Z"
+          type: string
+          description: >-
+            When this account was deleted. Empty if the account is not deleted.
+            Only
+             ever set when the request asked for deleted accounts.
+          format: date-time
     TaxTransaction:
       type: object
       properties:
         id:
+          example: tr_01HVXHG9PMDKR3YQV4Z8W5T2BN
           type: string
         accountId:
+          example: acc_01HQZX3V9KJ4M2P8R6T0W5Y7BC
           type: string
+          description: >-
+            The bitcoin account the transaction belongs to. Empty for fiat
+            deposits
+             and fiat withdrawals, which are not tied to an account.
         type:
           enum:
             - TAX_TRANSACTION_TYPE_BTC_BUY
@@ -740,43 +888,98 @@ components:
           type: string
           format: enum
         subType:
+          example: market
+          enum:
+            - ""
+            - market
+            - limit
+            - manual
+            - onchain
+            - lightning
+            - internal
+            - lightning-payment-request
+            - lightning-address
+            - bank
+            - card
           type: string
+          description: |-
+            Sub-type of the transaction. Which values apply depends on the type:
+             trades carry the order type, bitcoin transfers the network, fiat deposits
+             the payment method. Empty when the transaction has no sub-type.
         createTime:
+          example: "2024-02-01T10:22:36Z"
           type: string
           format: date-time
         finalizeTime:
+          example: "2024-02-01T10:41:05Z"
           type: string
+          description: |-
+            Unset while the transaction is still pending, e.g. a bitcoin deposit
+             that is not yet confirmed.
           format: date-time
         inAmount:
+          example: "0.1"
           type: string
           description: Stringified decimal number
         inCurrency:
+          example: BTC
           type: string
         outAmount:
+          example: "65000"
           type: string
           description: Stringified decimal number
         outCurrency:
+          example: NOK
           type: string
         feeAmount:
+          example: "975"
           type: string
-          description: Stringified decimal number
+          description: >-
+            Stringified decimal number. When the fee is zero, fee_currency may
+            be
+             empty.
         feeCurrency:
+          example: NOK
           type: string
         rateMarket:
+          example: "650000"
           type: string
-          description: Stringified decimal number
+          description: >-
+            Stringified decimal number: the market rate in NOK per BTC at the
+            time of
+             the transaction.
         isPayment:
           type: boolean
+          description: >-
+            Whether the transaction was a payment to a third party, as declared
+            by
+             the user. Only ever set for bitcoin withdrawals.
         paymentInfo:
+          example: >-
+            f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16:bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4
           type: string
+          description: >-
+            For bitcoin transfers: `<network ID>:<destination address>`. For
+            bank
+             fiat transfers: the counterparty bank account number. Empty for card
+             deposits, trades and bonuses.
         note:
+          example: Første kjøp
           type: string
+          description: Free-form user-supplied description.
         usdnok:
+          example: "10.45"
           type: string
-          description: Stringified decimal number
+          description: >-
+            Stringified decimal number: the USD/NOK exchange rate at the time of
+            the
+             transaction, when known.
         runningBalanceBtc:
+          example: "1.8997585"
           type: string
-          description: Stringified decimal number
+          description: |-
+            Stringified decimal number: the user's total BTC balance across all
+             accounts after this transaction.
     UserPrice:
       type: object
       properties:
@@ -839,6 +1042,8 @@ components:
           $ref: "#/components/schemas/VolumeStats"
         yearly:
           $ref: "#/components/schemas/VolumeStats"
+        last24h:
+          $ref: "#/components/schemas/VolumeStats"
     VolumeStats:
       type: object
       properties:
@@ -851,6 +1056,9 @@ components:
         buyPercentage:
           type: number
           format: double
+        numberOfTrades:
+          type: integer
+          format: int32
   securitySchemes:
     apiKey:
       type: apiKey
@@ -873,6 +1081,23 @@ components:
         corresponding secret value from your API key.
       name: x-bb-api-hmac
       in: header
+    oauth2:
+      type: oauth2
+      description: >-
+        OAuth2 access token obtained through the authorization code flow. Only
+        available on a subset of endpoints. The required scope is listed per
+        operation.
+      flows:
+        authorizationCode:
+          authorizationUrl: https://api.bb.no/oauth2/v0/authorize
+          tokenUrl: https://api.bb.no/oauth2/v0/token
+          refreshUrl: https://api.bb.no/oauth2/v0/token
+          scopes:
+            api:accounts:bitcoin:read: See balance and names of your bitcoin accounts
+            api:trades:read: See executed trades
+            api:tax:transactions:read: Read transactions relevant for tax calculation
+            api:deposits:lightning:read: See Lightning invoices and their payment status
+            api:deposits:lightning:write: Create Lightning invoices for payments to you
 security:
   - apiKey: []
 tags:
