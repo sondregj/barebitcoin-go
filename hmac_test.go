@@ -2,6 +2,7 @@ package barebitcoin
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -60,5 +61,28 @@ func TestHMACExcludesQuery(t *testing.T) {
 	}
 	if gotHMAC != want {
 		t.Errorf("HMAC mismatch\n got:  %s\nwant: %s", gotHMAC, want)
+	}
+}
+
+func TestAPIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(`{"message":"slow down"}`))
+	}))
+	defer server.Close()
+
+	client := &HTTPClient{baseURL: server.URL, client: server.Client()}
+
+	err := client.doGetRequest(context.Background(), "/v1/orders", nil)
+
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T: %v", err, err)
+	}
+	if apiErr.StatusCode != http.StatusTooManyRequests {
+		t.Errorf("expected status %d, got %d", http.StatusTooManyRequests, apiErr.StatusCode)
+	}
+	if got, want := err.Error(), `HTTP 429: {"message":"slow down"}`; got != want {
+		t.Errorf("expected error %q, got %q", want, got)
 	}
 }

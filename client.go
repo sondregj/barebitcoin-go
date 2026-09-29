@@ -603,6 +603,16 @@ func (c *HTTPClient) generateHMAC(method, path string, nonce uint64, body []byte
 	return digest, nil
 }
 
+// APIError is returned when the API responds with a non-successful status code.
+type APIError struct {
+	StatusCode int
+	Body       []byte
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("HTTP %d: %s", e.StatusCode, string(e.Body))
+}
+
 func (c *HTTPClient) doRequest(ctx context.Context, method, path string, body, out any) error {
 	url := c.baseURL + path
 
@@ -652,7 +662,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, path string, body, o
 	}
 
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
+		return &APIError{StatusCode: resp.StatusCode, Body: respBody}
 	}
 
 	if out != nil && len(respBody) > 0 {
