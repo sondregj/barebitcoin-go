@@ -608,11 +608,11 @@ type APIError struct {
 	StatusCode int
 
 	// The gRPC status code and message from the response body, if present.
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code    int
+	Message string
 
 	// The raw response body.
-	Body []byte `json:"-"`
+	Body []byte
 }
 
 func (e *APIError) Error() string {
@@ -672,8 +672,16 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, path string, body, o
 
 	if resp.StatusCode >= 400 {
 		apiErr := &APIError{StatusCode: resp.StatusCode, Body: respBody}
-		// Best effort: the body is not guaranteed to be a gRPC status
-		_ = json.Unmarshal(respBody, apiErr)
+		var status struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		}
+		// Not every error response is a gRPC status (e.g. HTML from a proxy), so
+		// ignore decode errors and leave Code and Message empty in that case.
+		if json.Unmarshal(respBody, &status) == nil {
+			apiErr.Code = status.Code
+			apiErr.Message = status.Message
+		}
 		return apiErr
 	}
 

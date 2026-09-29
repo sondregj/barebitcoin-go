@@ -82,6 +82,12 @@ func TestAPIError(t *testing.T) {
 			wantError:   `HTTP 400: cannot fetch by "x"`,
 		},
 		{
+			name:      "body does not override status code",
+			status:    http.StatusInternalServerError,
+			body:      `{"statusCode":200}`,
+			wantError: `HTTP 500: {"statusCode":200}`,
+		},
+		{
 			name:      "non-JSON body",
 			status:    http.StatusBadGateway,
 			body:      "bad gateway",
