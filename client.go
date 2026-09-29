@@ -543,7 +543,8 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, path string, body, o
 	// Add authentication headers if keys are available
 	if c.apiKey != "" && c.secretKey != "" {
 		nonce := uint64(time.Now().UnixNano()) / 1000000
-		signature, err := c.generateHMAC(method, path, nonce, []byte(bodyString))
+		// Only the URI path is signed, not the query string
+		signature, err := c.generateHMAC(method, req.URL.EscapedPath(), nonce, []byte(bodyString))
 		if err != nil {
 			return fmt.Errorf("generating HMAC: %w", err)
 		}
