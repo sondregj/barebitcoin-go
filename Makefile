@@ -6,5 +6,5 @@ build:
 	go build -o ./bin/barebitcoin ./cmd/barebitcoin
 
 openapi:
-	curl -fL "https://dev.barebitcoin.no/_spec/api/openapi.yaml?download" -o ./openapi.yaml
+	curl -fL "https://barebitcoin.no/developers/openapi.yaml" -o ./openapi.yaml
 	prettier --write ./openapi.yaml
