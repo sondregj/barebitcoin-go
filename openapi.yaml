@@ -1,11 +1,10 @@
+# Generated with protoc-gen-openapi
+# https://github.com/google/gnostic/tree/master/cmd/protoc-gen-openapi
+
 openapi: 3.0.3
 info:
   title: Bare Bitcoin API
-  description: >-
-    API for interacting with Bare Bitcoin. Most endpoints require
-    authentication. Create API keys
-    [here](https://barebitcoin.no/innlogget/profil/nokler). Read about API
-    authentication [here](https://dev.barebitcoin.no/#authentication).
+  description: API for interacting with Bare Bitcoin. Most endpoints require authentication. Create API keys [here](https://barebitcoin.no/innlogget/profil/nokler). Read about API authentication [here](https://barebitcoin.no/developers/authentication).
   contact:
     url: https://barebitcoin.no
     email: barebitcoin@bb.no
@@ -19,9 +18,8 @@ paths:
       tags:
         - BitcoinTransferService
       summary: Fetch bitcoin deposit destinations
-      description: >-
-        Fetches bitcoin deposit destinations. These destinations are always
-        valid,
+      description: |-
+        Fetches bitcoin deposit destinations. These destinations are always valid,
          and can be used for receiving arbitrary amounts. Onchain addresses are refreshed
          every time a deposit is made, but all prior generated addresses are still valid.
       operationId: BitcoinTransferService_DepositDestinations
@@ -43,10 +41,9 @@ paths:
       tags:
         - BitcoinTransferService
       summary: Create a new Lightning invoice
-      description: >-
-        Creates a new BOLT11 Lightning invoice. Lightning invoices are requests
-        to receive a specific
-         amount of bitcoin within a set amount of time. If you don't a specific amount, consider
+      description: |-
+        Creates a new BOLT11 Lightning invoice. Lightning invoices are requests to receive a specific
+         amount of bitcoin within a set amount of time. If you don't need a specific amount, consider
          using the destinations returned from /v1/deposit-destinations/bitcoin.
       operationId: BitcoinTransferService_NewLightningInvoice
       requestBody:
@@ -64,8 +61,6 @@ paths:
                 $ref: "#/components/schemas/NewLightningInvoiceResponse"
       security:
         - apiKey: []
-          apiHmac: []
-          apiNonce: []
         - oauth2:
             - api:deposits:lightning:write
   /v1/deposit-destinations/bitcoin/invoice/{id}:
@@ -73,7 +68,7 @@ paths:
       tags:
         - BitcoinTransferService
       summary: Fetch a Lightning invoice
-      description: Fetches a Lightning invoice.
+      description: Fetches a Lightning invoice the user created, and whether it is paid.
       operationId: BitcoinTransferService_GetLightningInvoice
       parameters:
         - name: id
@@ -119,7 +114,8 @@ paths:
       description: |-
         Places a new order. If the endpoint returns with a 200 status, the order
          is successfully placed. If you're creating a market order, a trade is
-         also created, and its ID is included in the response.
+         also created, and its ID is included in the response. Requests are not
+         idempotent: after a timeout, check open orders before retrying.
       operationId: TradingService_NewOrder
       requestBody:
         content:
@@ -157,12 +153,18 @@ paths:
         "200":
           description: OK
           content: {}
+      security:
+        - apiKey: []
+          apiHmac: []
+          apiNonce: []
   /v1/price/nok:
     get:
       tags:
         - PublicService
       summary: Fetch BTCNOK
-      description: Fetches the current BTCNOK price.
+      description: |-
+        Fetches the current BTCNOK price at Bare Bitcoin: the mid price, bid, ask,
+         and the buy and sell prices for card and bank payments.
       operationId: PublicService_Price
       parameters:
         - name: amount
@@ -192,9 +194,8 @@ paths:
       parameters:
         - name: includeDeleted
           in: query
-          description: >-
-            Include accounts that have previously been deleted. Useful for
-            resolving
+          description: |-
+            Include accounts that have previously been deleted. Useful for resolving
              the name of an account referenced by an older transaction.
           schema:
             type: boolean
@@ -214,26 +215,27 @@ paths:
       tags:
         - TaxService
       summary: List tax transactions
-      description: >-
+      description: |-
         Lists tax-relevant transactions done by the user within the Bare Bitcoin
-        platform.
-         Note that this does NOT include any of the third party transactions imported into
-         the platform tax calculator.
+         platform, oldest first: trades, bitcoin deposits and withdrawals, NOK
+         deposits and withdrawals, bonuses and adjustments. Note that this does NOT
+         include any of the third party transactions imported into the platform tax
+         calculator. When hasMore is true, pass nextAfter and nextAfterId as after
+         and afterId to fetch the next page.
       operationId: TaxService_ListTaxTransactions
       parameters:
         - name: pageSize
           in: query
-          description: >-
-            Items per page (max 200). When set to 0, all matching transactions
-            are returned.
+          description: |-
+            Items per page (max 200). When set to 0, all matching transactions are
+             returned, except through MCP, where it defaults to 50.
           schema:
             type: integer
             format: int32
         - name: after
           in: query
-          description: >-
-            Transactions are listed oldest first (required to compute
-            running_balance_btc
+          description: |-
+            Transactions are listed oldest first (required to compute running_balance_btc
              correctly), so pagination walks forward in time. Only return transactions
              created after this time. Can be used standalone to filter down to a start
              date; pass next_after from the previous response (together with
@@ -243,18 +245,16 @@ paths:
             format: date-time
         - name: afterId
           in: query
-          description: >-
-            Pagination cursor tiebreaker: when multiple transactions share the
-            same
+          description: |-
+            Pagination cursor tiebreaker: when multiple transactions share the same
              create_time, this ID breaks the tie. Pass next_after_id from the previous
-             response. Only meaningful together with 'after'; ignored otherwise.
+             response. Requires 'after'; supplying 'after_id' alone is rejected.
           schema:
             type: string
         - name: before
           in: query
-          description: >-
-            Only return transactions created strictly before this time. Filter
-            only,
+          description: |-
+            Only return transactions created strictly before this time. Filter only,
              does not affect pagination direction.
           schema:
             type: string
@@ -270,12 +270,59 @@ paths:
         - apiKey: []
         - oauth2:
             - api:tax:transactions:read
+  /v1/trades:
+    get:
+      tags:
+        - TradingService
+      summary: List trades
+      description: |-
+        Lists the user's executed trades, newest first. When hasMore is true, pass
+         nextBefore and nextBeforeId as before and beforeId to fetch the next page.
+      operationId: TradingService_ListTrades
+      parameters:
+        - name: pageSize
+          in: query
+          description: |-
+            Items per page (max 200). When set to 0, all matching trades are returned,
+             except through MCP, where it defaults to 50.
+          schema:
+            type: integer
+            format: int32
+        - name: before
+          in: query
+          description: |-
+            Trades are listed newest first, so pagination walks backward in time. Only
+             return trades created before this time. Can be used standalone to filter
+             down to an end date; pass next_before from the previous response (together
+             with next_before_id) to fetch the next page.
+          schema:
+            type: string
+            format: date-time
+        - name: beforeId
+          in: query
+          description: |-
+            Pagination cursor tiebreaker: when multiple trades share the same
+             create_time, this ID breaks the tie. Pass next_before_id from the previous
+             response. Requires 'before'; supplying 'before_id' alone is rejected.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListTradesResponse"
+      security:
+        - apiKey: []
+        - oauth2:
+            - api:trades:read
   /v1/user/applications/consent/{clientId}:
     delete:
       tags:
         - UserService
       summary: Revoke consent for a specific OAuth2 application
-      description: This endpoint can be called with any valid OAuth2-obtained token
+      description: Revokes the access you have given the OAuth2 application with this client ID, and invalidates its tokens. An application can only revoke its own consent, using one of its access tokens. API keys cannot revoke consent.
       operationId: UserService_RevokeConsent
       parameters:
         - name: clientId
@@ -288,7 +335,6 @@ paths:
           description: OK
           content: {}
       security:
-        - apiKey: []
         - oauth2: []
   /v1/user/bitcoin-accounts:
     get:
@@ -339,7 +385,9 @@ paths:
       tags:
         - PublicService
       summary: Fetch volume statistics
-      description: Returns statistics about the volume of BTCNOK trades.
+      description: |-
+        Returns statistics about the volume of BTCNOK trades at Bare Bitcoin: the
+         last 24 hours, and the day, month and year of a date.
       operationId: PublicService_Volume
       parameters:
         - name: date
@@ -368,8 +416,8 @@ paths:
         - name: date
           in: query
           description: |-
-            The date to fetch the volume for. If empty, defaults to today.
-             Format: YYYY-MM-DD
+            First day of the period to fetch volume for. The period runs until today.
+             If empty, defaults to one month ago. Format: YYYY-MM-DD
           schema:
             type: string
       responses:
@@ -381,6 +429,42 @@ paths:
                 $ref: "#/components/schemas/VolumeHistoricResponse"
       security:
         - {}
+  /v1/withdrawal-exchanges/bitcoin:
+    get:
+      tags:
+        - BitcoinTransferService
+      summary: List supported withdrawal exchanges
+      description: Lists the exchanges accepted in SendBitcoinRequest.tfr_info.exchange.
+      operationId: BitcoinTransferService_ListSupportedWithdrawalExchanges
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListSupportedWithdrawalExchangesResponse"
+  /v1/withdrawal-requirements/bitcoin:
+    get:
+      tags:
+        - BitcoinTransferService
+      summary: Check withdrawal requirements
+      description: |-
+        Checks whether a withdrawal to this destination needs recipient information.
+         SendBitcoin checks again when the withdrawal is submitted.
+      operationId: BitcoinTransferService_GetBitcoinWithdrawalRequirements
+      parameters:
+        - name: destination
+          in: query
+          description: Required. Accepts the same formats as SendBitcoinRequest.destination.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetBitcoinWithdrawalRequirementsResponse"
   /v1/withdrawals/bitcoin:
     post:
       tags:
@@ -390,7 +474,11 @@ paths:
         Initiates a bitcoin withdrawal. The transaction is not completed until
          it is confirmed by the network it is sent onto. A success response from
          this endpoint means the transaction was successfully initiated, but
-         does not guarantee completion.
+         does not guarantee completion. Supply an idempotency_key to prevent
+         duplicate withdrawals after a timeout. Reusing a key returns HTTP 409
+         (AlreadyExists), with the existing withdrawal ID in the error message.
+         Requests can still fail validation before duplicate detection.
+         Without a key, check your withdrawals before retrying.
       operationId: BitcoinTransferService_SendBitcoin
       requestBody:
         content:
@@ -435,29 +523,34 @@ components:
       type: object
       properties:
         id:
+          example: "acc_01HQZX3V9KJ4M2P8R6T0W5Y7BC"
           type: string
         availableBtc:
+          example: 0.0245
           type: number
-          description: >-
-            The current BTC holdings that can be used for trading or
-            withdrawals.
+          description: The current BTC holdings that can be used for trading or withdrawals.
           format: double
         totalBtc:
+          example: 0.0251
           type: number
           description: The BTC balance of the account.
           format: double
         totalNok:
+          example: 26304.8
           type: number
           description: The NOK value of the BTC of the account, at the time of the request.
           format: double
         name:
+          example: "Hovedkonto"
           type: string
           description: The name of the account.
         createTime:
+          example: "2024-06-03T08:15:42.103948Z"
           type: string
           description: When this account was created.
           format: date-time
         deleteTime:
+          example: "2025-11-14T09:03:11.482190Z"
           type: string
           description: |-
             When this account was deleted.
@@ -467,8 +560,10 @@ components:
       type: object
       properties:
         destination:
+          example: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
           type: string
         network:
+          example: "NETWORK_BITCOIN"
           enum:
             - NETWORK_BITCOIN
             - NETWORK_LIGHTNING
@@ -478,20 +573,54 @@ components:
       type: object
       properties:
         onchainAddress:
-          $ref: "#/components/schemas/DepositDestination"
+          example:
+            {
+              "destination": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+              "network": "NETWORK_BITCOIN",
+            }
+          allOf:
+            - $ref: "#/components/schemas/DepositDestination"
+          description: Bitcoin address for on-chain deposits to the account.
         lightningAddress:
-          $ref: "#/components/schemas/DepositDestination"
+          example:
+            {
+              "destination": "aktiv-anker@bb.no",
+              "network": "NETWORK_LIGHTNING",
+            }
+          allOf:
+            - $ref: "#/components/schemas/DepositDestination"
+          description: |-
+            Lightning address (name@bb.no) that accepts payments of any amount to the
+             account.
         lnurlPay:
-          $ref: "#/components/schemas/DepositDestination"
+          example:
+            {
+              "destination": "LNURL1DP68GURN8GHJ7CTSDYHXYC3WDEHJ7MRFVA58GMNFDENJ7MRWW4EXCTTSV9UN7CTRVDHH2MN584SKXC6LXQC5S526TQE4VW2TFG6Y6VJS8PFRV4PS2U64JD6ZGVN82UM9WG7N2C33VCEKXVN995UXZDRY956XVDNZ95UK2VNR95MKGVTPXP3RXCE5V56KVGK8387",
+              "network": "NETWORK_LIGHTNING",
+            }
+          allOf:
+            - $ref: "#/components/schemas/DepositDestination"
+          description: LNURL-pay code that accepts Lightning payments to the account.
+    GetBitcoinWithdrawalRequirementsResponse:
+      type: object
+      properties:
+        tfrInfoRequired:
+          type: boolean
+          description: |-
+            Whether SendBitcoin needs tfr_info for this destination. Requirements can
+             change, so SendBitcoin validates the request again when it is submitted.
     GetBitcoinWithdrawalResponse:
       type: object
       properties:
         withdrawalId:
+          example: "wi_01JA2B3C4D5E6F7G8H9J0K1M2N"
           type: string
         destination:
+          example: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
           type: string
           description: The destination of the withdrawal.
         network:
+          example: "NETWORK_BITCOIN"
           enum:
             - NETWORK_BITCOIN
             - NETWORK_LIGHTNING
@@ -499,16 +628,19 @@ components:
           description: The network this withdrawal was sent on.
           format: enum
         amountBtc:
+          example: 0.01
           type: number
           description: The amount of BTC that was withdrawn.
           format: double
         amountNok:
+          example: 10480
           type: number
           description: |-
             The value of the BTC that was withdrawn, in NOK equivalent
              at time of withdrawal.
           format: double
         status:
+          example: "WITHDRAWAL_STATUS_COMPLETED"
           enum:
             - WITHDRAWAL_STATUS_PENDING
             - WITHDRAWAL_STATUS_COMPLETED
@@ -517,10 +649,12 @@ components:
           description: The status of the withdrawal.
           format: enum
         createdAt:
+          example: "2026-03-14T09:26:53.589793Z"
           type: string
           description: The time the withdrawal was initiated.
           format: date-time
         sentAt:
+          example: "2026-03-14T09:31:07.214552Z"
           type: string
           description: The time the withdrawal was sent from the platform.
           format: date-time
@@ -528,6 +662,7 @@ components:
       type: object
       properties:
         availableNok:
+          example: 12500.5
           type: number
           description: |-
             The current NOK holdings that can be used for trading or
@@ -537,10 +672,13 @@ components:
       type: object
       properties:
         depositDestinationId:
+          example: "ded_01JA3QW7E2R9T4Y6V8P0S1D3F5"
           type: string
         invoice:
+          example: "lnbc2500u1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygspp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpu9qrsgquk0rl77nj30yxdy8j9vdx85fkpmdla2087ne0xh8nhedh8w27kyke0lp53ut353s06fv3qfegext0eh0ymjpf39tuven09sam30g4vgpfna3rh"
           type: string
         status:
+          example: "INVOICE_STATUS_PAID"
           enum:
             - INVOICE_STATUS_UNPAID
             - INVOICE_STATUS_PENDING
@@ -549,6 +687,32 @@ components:
             - INVOICE_STATUS_CANCELED
           type: string
           format: enum
+        expiresAt:
+          example: "2026-07-04T10:15:00Z"
+          type: string
+          description: |-
+            When the invoice stops being payable. This is the expiry encoded into the
+             invoice itself, so a payer's wallet enforces it too.
+          format: date-time
+        amountReceivedMillisatoshi:
+          example: "250000000"
+          type: string
+          description: |-
+            The amount the payer sent, in millisatoshis. Set only when the invoice is
+             paid. It is never less than the amount encoded in the invoice, but can be
+             more: Lightning nodes accept overpayment.
+        paidAt:
+          example: "2026-07-04T10:02:31Z"
+          type: string
+          description: When the invoice was paid. Set only when the invoice is paid.
+          format: date-time
+        preimage:
+          example: "0001020304050607080900010203040506070809000102030405060708090102"
+          type: string
+          description: |-
+            The payment preimage, hex encoded. Its SHA-256 hash is the payment hash
+             encoded in the invoice, so it is proof of payment. Set only when the
+             invoice is paid.
     GetTaxBalanceResponse:
       type: object
       properties:
@@ -565,43 +729,83 @@ components:
       properties:
         fullName:
           type: string
-          description: >-
-            Recipient name. For an organisation this is its registered name.
-            Required
-             for a private individual; optional for an organisation, which is identified
-             by the organisasjonsnummer in nin.
+          description: |-
+            Full name of the person, or registered name of the organisation, on the
+             other side of the transfer. Required for both people and organisations.
         country:
           type: string
-          description: ISO-3166-1 alpha-2 country code
+          description: Country of that person or organisation, as an ISO-3166-1 alpha-2 code.
         address:
           type: string
+          description: |-
+            Postal address of that person or organisation. For a withdrawal, the
+             bitcoin address or invoice goes in SendBitcoinRequest.destination instead.
         nin:
           type: string
-          description: >-
-            The recipient's fødselsnummer, or a 9-digit organisasjonsnummer when
-            the
-             recipient is an organisation. Only required if the TFR config said so.
+          description: |-
+            National identity number of the person, or 9-digit Norwegian
+             organisasjonsnummer of the organisation. Supply it for self-custody
+             withdrawals. It can be omitted for withdrawals to an exchange.
         exchange:
           type: string
+          description: |-
+            Name of the exchange holding the account. For withdrawals, choose a name
+             from ListSupportedWithdrawalExchanges. Leave empty for self-custody.
         selfCustody:
           type: boolean
+          description: |-
+            True when the destination is a wallet held outside an exchange. Otherwise
+             set this to false and provide exchange.
+        ownWallet:
+          type: boolean
+          description: |-
+            True when the wallet or exchange account belongs to the Bare Bitcoin
+             customer. False when it belongs to another person or organisation.
     ListBitcoinAccountsResponse:
       type: object
       properties:
         accounts:
+          example:
+            [
+              {
+                "id": "acc_01HQZX3V9KJ4M2P8R6T0W5Y7BC",
+                "availableBtc": 0.0145,
+                "totalBtc": 0.0151,
+                "totalNok": 15824.8,
+                "name": "Hovedkonto",
+                "createTime": "2024-06-03T08:15:42.103948Z",
+              },
+              {
+                "id": "acc_01J2M8RK4XHV7T3N9QW6B5Y0ZD",
+                "availableBtc": 0.01,
+                "totalBtc": 0.01,
+                "totalNok": 10480,
+                "name": "Sparekonto",
+                "createTime": "2025-01-09T19:02:11.734120Z",
+              },
+            ]
           type: array
           items:
             $ref: "#/components/schemas/BitcoinAccount"
         totalBtc:
+          example: 0.0251
           type: number
           description: The total BTC balance of all accounts.
           format: double
         totalNok:
+          example: 26304.8
           type: number
           description: |-
             The total NOK value of the BTC of all accounts,
              at the time of the request.
           format: double
+    ListSupportedWithdrawalExchangesResponse:
+      type: object
+      properties:
+        exchanges:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupportedWithdrawalExchange"
     ListTaxTransactionsResponse:
       type: object
       properties:
@@ -611,94 +815,131 @@ components:
             $ref: "#/components/schemas/TaxTransaction"
         hasMore:
           type: boolean
-          description: >-
-            True if there are more transactions available after the last one
-            returned.
+          description: True if there are more transactions available after the last one returned.
         nextAfter:
+          example: "2024-02-01T10:22:36Z"
           type: string
           description: "Cursor for the next page: pass this as 'after' in the next request."
           format: date-time
         nextAfterId:
+          example: "tr_01HVXHG9PMDKR3YQV4Z8W5T2BN"
           type: string
-          description: >-
-            Tiebreaker for the cursor: pass this as 'after_id' in the next
-            request.
+          description: "Tiebreaker for the cursor: pass this as 'after_id' in the next request."
+    ListTradesResponse:
+      type: object
+      properties:
+        trades:
+          type: array
+          items:
+            $ref: "#/components/schemas/Trade"
+        hasMore:
+          type: boolean
+          description: Whether there are more trades to fetch.
+        nextBefore:
+          type: string
+          description: Pass as 'before' in the next request to fetch the next page.
+          format: date-time
+        nextBeforeId:
+          type: string
+          description: Pass as 'before_id' in the next request to fetch the next page.
     NewLightningInvoiceRequest:
       type: object
       properties:
         accountId:
+          example: "acc_01HQZX3V9KJ4M2P8R6T0W5Y7BC"
           type: string
           description: if empty, the default account is used.
         currency:
+          example: "CURRENCY_NOK"
           enum:
             - CURRENCY_BTC
             - CURRENCY_NOK
           type: string
-          description: >-
-            The currency the invoice is denominated in. Once created, the
-            invoice
+          description: |-
+            The currency the invoice is denominated in. Once created, the invoice
              is for a specific amount of bitcoin.
           format: enum
         amount:
+          example: 2620
           type: number
           description: |-
             The amount of the invoice, in the requested currency. Setting to 0
              creates an invoice where any amount is accepted.
           format: double
         publicDescription:
+          example: "Kaffe og kanelbolle"
           type: string
           description: |-
-            Public description of the invoice. Shown to both the creator and the
-             recipient of the invoice. This is the so-called "memo" field of the
-             Lightning invoice.
+            Public description of the invoice. The invoice commits to it through its
+             description hash; the memo field is left empty, so most wallets do not
+             show it to the payer.
         internalDescription:
+          example: "faktura-1042"
           type: string
-          description: >-
-            Free-form text description of the invoice. Can be used to correlate
-            with
+          description: |-
+            Free-form text description of the invoice. Can be used to correlate with
              your own systems. Only shown to the creator of this invoice, within the
              Bare Bitcoin systems.
+        expirySeconds:
+          example: 900
+          type: integer
+          description: |-
+            How long the invoice stays payable, counted from when it is created. At
+             least 60 seconds, at most 24 hours. If empty, the invoice expires after
+             24 hours.
+          format: uint32
     NewLightningInvoiceResponse:
       type: object
       properties:
         depositDestinationId:
+          example: "ded_01JA3QW7E2R9T4Y6V8P0S1D3F5"
           type: string
         invoice:
+          example: "lnbc2500u1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygspp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpu9qrsgquk0rl77nj30yxdy8j9vdx85fkpmdla2087ne0xh8nhedh8w27kyke0lp53ut353s06fv3qfegext0eh0ymjpf39tuven09sam30g4vgpfna3rh"
           type: string
+        expiresAt:
+          example: "2026-07-04T10:15:00Z"
+          type: string
+          description: |-
+            When the invoice stops being payable. This is the expiry encoded into the
+             invoice itself, so a payer's wallet enforces it too.
+          format: date-time
     NewOrderRequest:
       type: object
       properties:
         type:
+          example: "ORDER_TYPE_MARKET"
           enum:
             - ORDER_TYPE_MARKET
             - ORDER_TYPE_LIMIT
           type: string
           format: enum
         direction:
+          example: "DIRECTION_BUY"
           enum:
             - DIRECTION_BUY
             - DIRECTION_SELL
           type: string
           format: enum
         amount:
+          example: 5000
           type: number
-          description: >-
-            Amount to spend. Must be positive. When buying, this is the amount
-            in NOK.
+          description: |-
+            Amount to spend. Must be positive. When buying, this is the amount in NOK.
              When selling, this is the amount in BTC.
           format: double
         accountId:
+          example: "acc_01HQZX3V9KJ4M2P8R6T0W5Y7BC"
           type: string
-          description: >-
-            The bitcoin account to use for this order. Empty for default
-            account.
+          description: The bitcoin account to use for this order. Empty for default account.
         description:
+          example: "Månedlig sparing"
           type: string
-          description: >-
-            Free-form text description of the order. Can be used to correlate
-            with
+          description: |-
+            Free-form text description of the order. Can be used to correlate with
              your own systems.
         price:
+          example: 1040000
           type: number
           description: The price to buy or sell at. Only used for limit orders.
           format: double
@@ -706,13 +947,14 @@ components:
       type: object
       properties:
         orderId:
+          example: "or_01J9ZK4T7M2QXW8B3N5R6V1Y0C"
           type: string
           description: ID of the created order.
         tradeId:
+          example: "tr_01J9ZK4T7S8P2D6F4H0K3M5N7Q"
           type: string
-          description: >-
-            If this was a market order, the order resulted in a trade. Empty if
-            not
+          description: |-
+            If this was a market order, the order resulted in a trade. Empty if not
              market order.
     OpenOrdersResponse:
       type: object
@@ -725,49 +967,60 @@ components:
       type: object
       properties:
         orderId:
+          example: "or_01J9ZK4T7M2QXW8B3N5R6V1Y0C"
           type: string
         type:
+          example: "ORDER_TYPE_LIMIT"
           enum:
             - ORDER_TYPE_MARKET
             - ORDER_TYPE_LIMIT
           type: string
           format: enum
         direction:
+          example: "DIRECTION_BUY"
           enum:
             - DIRECTION_BUY
             - DIRECTION_SELL
           type: string
           format: enum
         amount:
+          example: 5000
           type: number
           format: double
         createdAt:
+          example: "2026-03-14T09:26:53.589793Z"
           type: string
           format: date-time
     PriceResponse:
       type: object
       properties:
         price:
+          example: 1048000
           type: number
           description: The mid price.
           format: double
         bid:
+          example: 1046000
           type: number
           description: Current bid price, without fees.
           format: double
         ask:
+          example: 1050000
           type: number
           description: Current ask price, without fees.
           format: double
         timestamp:
+          example: "2026-03-14T09:26:53.589793Z"
           type: string
           description: The time the price was fetched.
           format: date-time
         card:
+          example: { "buy": 1088850, "sell": 1007298 }
           allOf:
             - $ref: "#/components/schemas/UserPrice"
           description: Effective price, when paying with card.
         bank:
+          example: { "buy": 1057350, "sell": 1038678 }
           allOf:
             - $ref: "#/components/schemas/UserPrice"
           description: Effective price, when paying with bank transfer.
@@ -775,6 +1028,7 @@ components:
       type: object
       properties:
         destination:
+          example: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
           type: string
           description: |-
             The bitcoin destination to send funds to.
@@ -784,6 +1038,7 @@ components:
              - Lightning address
              - Lightning LNURL
         amountBtc:
+          example: 0.01
           type: number
           description: |-
             The amount to send.
@@ -792,89 +1047,116 @@ components:
              invoice.
           format: double
         accountId:
+          example: "acc_01HQZX3V9KJ4M2P8R6T0W5Y7BC"
           type: string
-          description: >-
-            The ID of the account to send from. If empty, the default account is
-            used.
+          description: The ID of the account to send from. If empty, the default account is used.
         isPayment:
+          example: false
           type: boolean
-          description: >-
-            Marks the transaction as a payment. This has consequences for how
-            the
+          description: |-
+            Marks the transaction as a payment. This has consequences for how the
              transaction is exported for tax purposes. It has no effect on the
              bitcoin transaction itself.
         description:
+          example: "Til hardware-lommebok"
           type: string
-          description: >-
-            Free-form text description of the withdrawal. Can be used to
-            correlate with
+          description: |-
+            Free-form text description of the withdrawal. Can be used to correlate with
              your own systems.
         tfrInfo:
           allOf:
             - $ref: "#/components/schemas/Info"
-          description: >-
-            The recipient of this transaction, per EU's travel rule. Required
-            for all
-             withdrawals to new destinations.
+          description: |-
+            Information about the recipient under the travel rule. Call
+             GetBitcoinWithdrawalRequirements to check whether it is needed for this
+             destination. full_name and postal address are always required when supplied,
+             including for an organisation.
+        idempotencyKey:
+          example: "0b943d76-3f66-4cb1-a088-95899d503402"
+          maxLength: 128
+          type: string
+          description: |-
+            Optional, case-insensitive identifier of up to 128 characters for this
+             withdrawal attempt.
+             Unique per user across all accounts and API credentials. Omitted or empty
+             disables duplicate protection. Use an opaque value such as a random UUID.
+             Creating another withdrawal with a stored key returns HTTP 409
+             (AlreadyExists), even if the inputs differ. Validation errors can occur
+             before duplicate detection. Keys do not expire and remain used if the
+             withdrawal fails or is cancelled. A request that fails before storing a
+             withdrawal does not consume its key. Retries still need a fresh API nonce
+             and HMAC. The conflict message includes the existing withdrawal ID.
     SendBitcoinResponse:
       type: object
       properties:
         withdrawalId:
+          example: "wi_01JA2B3C4D5E6F7G8H9J0K1M2N"
           type: string
           description: The ID of the initiated withdrawal.
         network:
+          example: "NETWORK_BITCOIN"
           enum:
             - NETWORK_BITCOIN
             - NETWORK_LIGHTNING
           type: string
           format: enum
         status:
+          example: "WITHDRAWAL_STATUS_COMPLETED"
           enum:
             - WITHDRAWAL_STATUS_PENDING
             - WITHDRAWAL_STATUS_COMPLETED
             - WITHDRAWAL_STATUS_FAILED
           type: string
-          description: >-
-            The status of the withdrawal. The withdrawal might immediately
-            succeed,
+          description: |-
+            The status of the withdrawal. The withdrawal might immediately succeed,
              if sending to another user of the Bare Bitcoin platform.
           format: enum
+    SupportedWithdrawalExchange:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Pass this name as SendBitcoinRequest.tfr_info.exchange.
     TaxAccountBalance:
       type: object
       properties:
         id:
-          example: acc_01HQZX3V9KJ4M2P8R6T0W5Y7BC
+          example: "acc_01HQZX3V9KJ4M2P8R6T0W5Y7BC"
           type: string
         name:
-          example: Sparekonto
+          example: "Sparekonto"
           type: string
         balanceBtc:
           example: "1.89975850"
           type: string
-          description: >-
-            Stringified decimal number with 8 decimal places: the BTC balance of
-            the
+          description: |-
+            Stringified decimal number with 8 decimal places: the BTC balance of the
              account.
         deleteTime:
           example: "2025-11-14T09:03:11Z"
           type: string
-          description: >-
-            When this account was deleted. Empty if the account is not deleted.
-            Only
+          description: |-
+            When this account was deleted. Empty if the account is not deleted. Only
              ever set when the request asked for deleted accounts.
           format: date-time
     TaxTransaction:
       type: object
       properties:
         id:
-          example: tr_01HVXHG9PMDKR3YQV4Z8W5T2BN
+          example: "tr_01HVXHG9PMDKR3YQV4Z8W5T2BN"
           type: string
+          description: |-
+            ID of the underlying transaction; its format depends on the type. Trades
+             use the trade ID (tr_), bitcoin deposits de_, bonuses gb_, fiat withdrawals
+             fpu_, adjustments abj_ or apj_, and costs the payment ID (in_ or pi_).
+             Bitcoin withdrawals and card deposits use a UUID, which is not the
+             withdrawal_id returned by the transfer endpoints. Bank deposits use the
+             bank's reference.
         accountId:
-          example: acc_01HQZX3V9KJ4M2P8R6T0W5Y7BC
+          example: "acc_01HQZX3V9KJ4M2P8R6T0W5Y7BC"
           type: string
-          description: >-
-            The bitcoin account the transaction belongs to. Empty for fiat
-            deposits
+          description: |-
+            The bitcoin account the transaction belongs to. Empty for fiat deposits
              and fiat withdrawals, which are not tied to an account.
         type:
           enum:
@@ -885,27 +1167,61 @@ components:
             - TAX_TRANSACTION_TYPE_BTC_BONUS
             - TAX_TRANSACTION_TYPE_FIAT_DEPOSIT
             - TAX_TRANSACTION_TYPE_FIAT_WITHDRAWAL
-          type: string
-          format: enum
-        subType:
-          example: market
-          enum:
-            - ""
-            - market
-            - limit
-            - manual
-            - onchain
-            - lightning
-            - internal
-            - lightning-payment-request
-            - lightning-address
-            - bank
-            - card
+            - TAX_TRANSACTION_TYPE_BTC_ADJUSTMENT
+            - TAX_TRANSACTION_TYPE_FIAT_ADJUSTMENT
+            - TAX_TRANSACTION_TYPE_COST
           type: string
           description: |-
-            Sub-type of the transaction. Which values apply depends on the type:
-             trades carry the order type, bitcoin transfers the network, fiat deposits
-             the payment method. Empty when the transaction has no sub-type.
+            The kind of transaction, and the fields it fills. Each value has the
+             prefix TAX_TRANSACTION_TYPE_.
+
+             - BTC_BUY: a buy of BTC with NOK. In: BTC. Out: NOK. Fee: NOK, the trade
+               fee plus the payment method fee. Sub-type: "market", "limit" or "manual".
+             - BTC_SELL: a sale of BTC for NOK. In: NOK. Out: BTC. Fee: BTC. Sub-type:
+               "market", "limit" or "manual".
+             - BTC_WITHDRAWAL: BTC sent from the account. Out: BTC, without fees. Fee:
+               BTC, the network fee plus the service fee. Sub-type: "onchain",
+               "lightning", "internal" or "internal-external".
+             - BTC_DEPOSIT: BTC received into the account. In: BTC. Sub-type:
+               "onchain", "internal", "internal-external", "lightning-payment-request",
+               "lightning-address" or "lightning-lnurl".
+             - BTC_BONUS: BTC that Bare Bitcoin gave to the user. In: BTC. No sub-type.
+             - FIAT_DEPOSIT: NOK paid in. In: NOK. Sub-type: "bank" or "card".
+             - FIAT_WITHDRAWAL: NOK paid out to a bank account. Out: NOK. Fee: NOK,
+               when not zero. No sub-type.
+             - BTC_ADJUSTMENT: a manual change to a BTC balance by Bare Bitcoin. No
+               trade occurred. In: BTC for an increase. Out: BTC for a decrease.
+               Sub-type: "write_off" for a debt that Bare Bitcoin will not collect,
+               "correction" for a wrong balance, or "unspecified".
+             - FIAT_ADJUSTMENT: a manual change to the NOK balance by Bare Bitcoin. In:
+               NOK for an increase. Out: NOK for a decrease. Sub-types as for
+               BTC_ADJUSTMENT.
+             - COST: a deductible cost paid in NOK. Out: NOK. Sub-type: "bb_plus".
+          format: enum
+        subType:
+          example: "market"
+          enum:
+            - ""
+            - "market"
+            - "limit"
+            - "manual"
+            - "onchain"
+            - "lightning"
+            - "internal"
+            - "internal-external"
+            - "lightning-payment-request"
+            - "lightning-address"
+            - "lightning-lnurl"
+            - "bank"
+            - "card"
+            - "write_off"
+            - "correction"
+            - "bb_plus"
+            - "unspecified"
+          type: string
+          description: |-
+            Sub-type of the transaction. The type field lists the sub-types of each
+             type. Empty when the transaction has no sub-type.
         createTime:
           example: "2024-02-01T10:22:36Z"
           type: string
@@ -920,59 +1236,60 @@ components:
         inAmount:
           example: "0.1"
           type: string
-          description: Stringified decimal number
+          description: |-
+            Stringified decimal number: the amount the user received. "0" when the
+             type has no in side. The type field shows the sides of each type.
         inCurrency:
-          example: BTC
+          example: "BTC"
           type: string
+          description: '"BTC" or "NOK". Empty when the type has no in side.'
         outAmount:
           example: "65000"
           type: string
-          description: Stringified decimal number
+          description: |-
+            Stringified decimal number: the amount the user paid. "0" when the type
+             has no out side. Includes trade fees; withdrawal fees are additional.
         outCurrency:
-          example: NOK
+          example: "NOK"
           type: string
+          description: '"BTC" or "NOK". Empty when the type has no out side.'
         feeAmount:
-          example: "975"
+          example: "455"
           type: string
-          description: >-
-            Stringified decimal number. When the fee is zero, fee_currency may
-            be
+          description: |-
+            Stringified decimal number. When the fee is zero, fee_currency may be
              empty.
         feeCurrency:
-          example: NOK
+          example: "NOK"
           type: string
         rateMarket:
-          example: "650000"
+          example: "645450"
           type: string
-          description: >-
-            Stringified decimal number: the market rate in NOK per BTC at the
-            time of
-             the transaction.
+          description: |-
+            Stringified decimal number: the market rate in NOK per BTC at the time of
+             the transaction. "0" for fiat transfers, adjustments and costs.
         isPayment:
+          example: false
           type: boolean
-          description: >-
-            Whether the transaction was a payment to a third party, as declared
-            by
+          description: |-
+            Whether the transaction was a payment to a third party, as declared by
              the user. Only ever set for bitcoin withdrawals.
         paymentInfo:
-          example: >-
-            f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16:bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4
+          example: "f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16:bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"
           type: string
-          description: >-
-            For bitcoin transfers: `<network ID>:<destination address>`. For
-            bank
+          description: |-
+            For bitcoin transfers: `<network ID>:<destination address>`. For bank
              fiat transfers: the counterparty bank account number. Empty for card
              deposits, trades and bonuses.
         note:
-          example: Første kjøp
+          example: "Første kjøp"
           type: string
           description: Free-form user-supplied description.
         usdnok:
           example: "10.45"
           type: string
-          description: >-
-            Stringified decimal number: the USD/NOK exchange rate at the time of
-            the
+          description: |-
+            Stringified decimal number: the USD/NOK exchange rate at the time of the
              transaction, when known.
         runningBalanceBtc:
           example: "1.8997585"
@@ -980,13 +1297,56 @@ components:
           description: |-
             Stringified decimal number: the user's total BTC balance across all
              accounts after this transaction.
+    Trade:
+      type: object
+      properties:
+        id:
+          example: "tr_01HVXHG9PMDKR3YQV4Z8W5T2BN"
+          type: string
+        accountId:
+          example: "acc_01HQZX3V9KJ4M2P8R6T0W5Y7BC"
+          type: string
+          description: The bitcoin account the trade belongs to.
+        direction:
+          enum:
+            - DIRECTION_BUY
+            - DIRECTION_SELL
+          type: string
+          format: enum
+        amountNok:
+          example: "65000"
+          type: string
+          description: |-
+            Stringified decimal number: the NOK amount paid when buying, or received
+             when selling.
+        amountBtc:
+          example: "0.10000000"
+          type: string
+          description: |-
+            Stringified decimal number with 8 decimal places: the BTC amount received
+             when buying, or sold when selling.
+        feeAmount:
+          example: "455"
+          type: string
+          description: |-
+            Stringified decimal number. When the fee is zero, fee_currency may be
+             empty.
+        feeCurrency:
+          example: "NOK"
+          type: string
+        createTime:
+          example: "2024-02-01T10:22:36Z"
+          type: string
+          format: date-time
     UserPrice:
       type: object
       properties:
         buy:
+          example: 1057350
           type: number
           format: double
         sell:
+          example: 1038678
           type: number
           format: double
       description: |-
@@ -1000,6 +1360,7 @@ components:
           items:
             $ref: "#/components/schemas/VolumeHistoricResponse_DailyVolume"
         shareOfTotalVolume:
+          example: { "Bare Bitcoin": 0.41, "Firi": 0.38, "NBX": 0.21 }
           type: object
           additionalProperties:
             type: number
@@ -1009,9 +1370,37 @@ components:
       type: object
       properties:
         date:
+          example: "2026-03-14"
           type: string
           description: YYYY-MM-DD
         stats:
+          example:
+            {
+              "Bare Bitcoin":
+                {
+                  "name": "Bare Bitcoin",
+                  "color": "#FF8000",
+                  "volumeNok": 4823117,
+                  "volumeBtc": 4.61234567,
+                  "shareOfTotalVolume": 0.41,
+                },
+              "Firi":
+                {
+                  "name": "Firi",
+                  "color": "#3538D4",
+                  "volumeNok": 4471342,
+                  "volumeBtc": 4.27566219,
+                  "shareOfTotalVolume": 0.38,
+                },
+              "NBX":
+                {
+                  "name": "NBX",
+                  "color": "#BEED5E",
+                  "volumeNok": 2470411,
+                  "volumeBtc": 2.36295,
+                  "shareOfTotalVolume": 0.21,
+                },
+            }
           type: object
           additionalProperties:
             $ref: "#/components/schemas/VolumeHistoricResponse_MarketStats"
@@ -1020,16 +1409,21 @@ components:
       type: object
       properties:
         name:
+          example: "Bare Bitcoin"
           type: string
         color:
+          example: "#FF8000"
           type: string
         volumeNok:
+          example: 4823117
           type: number
           format: double
         volumeBtc:
+          example: 4.61234567
           type: number
           format: double
         shareOfTotalVolume:
+          example: 0.41
           type: number
           description: Share of the total volume for the day in question.
           format: double
@@ -1037,26 +1431,66 @@ components:
       type: object
       properties:
         daily:
-          $ref: "#/components/schemas/VolumeStats"
+          example:
+            {
+              "amountNok": 4823117,
+              "amountBtc": 4.61234567,
+              "buyPercentage": 63,
+              "numberOfTrades": 412,
+            }
+          allOf:
+            - $ref: "#/components/schemas/VolumeStats"
+          description: Volume for the requested date, in Oslo time.
         monthly:
-          $ref: "#/components/schemas/VolumeStats"
+          example:
+            {
+              "amountNok": 98234511,
+              "amountBtc": 93.81234567,
+              "buyPercentage": 58,
+              "numberOfTrades": 8731,
+            }
+          allOf:
+            - $ref: "#/components/schemas/VolumeStats"
+          description: Volume for the calendar month containing the requested date.
         yearly:
-          $ref: "#/components/schemas/VolumeStats"
+          example:
+            {
+              "amountNok": 412345678,
+              "amountBtc": 402.12345678,
+              "buyPercentage": 61,
+              "numberOfTrades": 37104,
+            }
+          allOf:
+            - $ref: "#/components/schemas/VolumeStats"
+          description: Volume for the calendar year containing the requested date.
         last24h:
-          $ref: "#/components/schemas/VolumeStats"
+          example:
+            {
+              "amountNok": 5102334,
+              "amountBtc": 4.87654321,
+              "buyPercentage": 64,
+              "numberOfTrades": 437,
+            }
+          allOf:
+            - $ref: "#/components/schemas/VolumeStats"
+          description: Volume for the last 24 hours, regardless of the requested date.
     VolumeStats:
       type: object
       properties:
         amountNok:
+          example: 4823117
           type: number
           format: double
         amountBtc:
+          example: 4.61234567
           type: number
           format: double
         buyPercentage:
+          example: 63
           type: number
           format: double
         numberOfTrades:
+          example: 412
           type: integer
           format: int32
   securitySchemes:
@@ -1067,37 +1501,28 @@ components:
       in: header
     apiNonce:
       type: apiKey
-      description: >-
-        Nonce value. Used to ensure correct ordering of all API requests, as
-        well as prevent attackers from being able to replay old requests. Can be
-        set to any value, but needs to increase for each request. Recommendation
-        is to use the current Unix timestamp in milliseconds.
+      description: Nonce value. Used to ensure correct ordering of all API requests, as well as prevent attackers from being able to replay old requests. Can be set to any value, but needs to increase for each request. Recommendation is to use the current Unix timestamp in milliseconds.
       name: x-bb-api-nonce
       in: header
     apiHmac:
       type: apiKey
-      description: >-
-        HMAC authentication for the API request, constructed using the
-        corresponding secret value from your API key.
+      description: HMAC authentication for the API request, constructed using the corresponding secret value from your API key.
       name: x-bb-api-hmac
       in: header
     oauth2:
       type: oauth2
-      description: >-
-        OAuth2 access token obtained through the authorization code flow. Only
-        available on a subset of endpoints. The required scope is listed per
-        operation.
+      description: OAuth2 access token obtained through the authorization code flow. Only available on a subset of endpoints. The required scope is listed per operation.
       flows:
         authorizationCode:
-          authorizationUrl: https://api.bb.no/oauth2/v0/authorize
-          tokenUrl: https://api.bb.no/oauth2/v0/token
-          refreshUrl: https://api.bb.no/oauth2/v0/token
+          authorizationUrl: https://barebitcoin.no/oauth2/authorize
+          tokenUrl: https://barebitcoin.no/oauth2/token
+          refreshUrl: https://barebitcoin.no/oauth2/token
           scopes:
-            api:accounts:bitcoin:read: See balance and names of your bitcoin accounts
-            api:trades:read: See executed trades
-            api:tax:transactions:read: Read transactions relevant for tax calculation
-            api:deposits:lightning:read: See Lightning invoices and their payment status
-            api:deposits:lightning:write: Create Lightning invoices for payments to you
+            "api:accounts:bitcoin:read": "See balance and names of your bitcoin accounts"
+            "api:trades:read": "See executed trades"
+            "api:tax:transactions:read": "Read transactions relevant for tax calculation"
+            "api:deposits:lightning:read": "See Lightning invoices and their payment status"
+            "api:deposits:lightning:write": "Create Lightning invoices for payments to you"
 security:
   - apiKey: []
 tags:
